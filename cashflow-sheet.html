@@ -1,0 +1,1247 @@
+<meta charset="utf-8">
+<title>CASHFLOW Sheet</title>
+<style>
+  :root{
+    --bg:#E9EFE5;
+    --panel:#FAFBF7;
+    --panel-2:#F1F4EC;
+    --ink:#24312A;
+    --muted:#68786C;
+    --rule:#CBD7C6;
+    --brand:#5B2C83;
+    --brand-hi:#6f3a9e;
+    --brand-ink:#FFFFFF;
+    --gold-bg:#F3E3B2;
+    --gold-ink:#6B4E0A;
+    --gold-edge:#D9B95C;
+    --pos:#1E7A46;
+    --neg:#B3372F;
+    --shadow:0 1px 3px rgba(36,49,42,.10);
+    --display:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#121814;
+      --panel:#1B231D;
+      --panel-2:#222C25;
+      --ink:#E7EDE5;
+      --muted:#93A296;
+      --rule:#2E3A31;
+      --brand:#8A5DBB;
+      --brand-hi:#9b70cc;
+      --brand-ink:#FFFFFF;
+      --gold-bg:#3A3012;
+      --gold-ink:#F0D488;
+      --gold-edge:#8A6D25;
+      --pos:#57C98B;
+      --neg:#E9837B;
+      --shadow:0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#121814; --panel:#1B231D; --panel-2:#222C25; --ink:#E7EDE5; --muted:#93A296;
+    --rule:#2E3A31; --brand:#8A5DBB; --brand-hi:#9b70cc; --brand-ink:#FFFFFF;
+    --gold-bg:#3A3012; --gold-ink:#F0D488; --gold-edge:#8A6D25;
+    --pos:#57C98B; --neg:#E9837B; --shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+  :root[data-theme="light"]{
+    --bg:#E9EFE5; --panel:#FAFBF7; --panel-2:#F1F4EC; --ink:#24312A; --muted:#68786C;
+    --rule:#CBD7C6; --brand:#5B2C83; --brand-hi:#6f3a9e; --brand-ink:#FFFFFF;
+    --gold-bg:#F3E3B2; --gold-ink:#6B4E0A; --gold-edge:#D9B95C;
+    --pos:#1E7A46; --neg:#B3372F; --shadow:0 1px 3px rgba(36,49,42,.10);
+  }
+  *{box-sizing:border-box}
+  button{-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:16px;
+    line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:480px;margin:0 auto;padding:0 14px 60px}
+  .money{font-variant-numeric:tabular-nums;font-weight:600}
+  .pos{color:var(--pos)}
+  .neg{color:var(--neg)}
+
+  /* ---------- header ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:20;
+    background:var(--bg);
+    margin:0 -14px;padding:10px 14px 8px;
+    border-bottom:1px solid var(--rule);
+  }
+  .topbar-inner{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .cash-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0}
+  .cash-amount{font-family:var(--display);font-size:32px;line-height:1.1;font-variant-numeric:tabular-nums;margin:0}
+  .btn-payday{
+    background:var(--brand);color:var(--brand-ink);
+    border:none;border-radius:8px;
+    font-family:var(--body);font-weight:700;font-size:15px;letter-spacing:.05em;
+    padding:14px 18px;cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  .btn-payday small{display:block;font-weight:500;font-size:11px;letter-spacing:0;opacity:.85;font-variant-numeric:tabular-nums}
+  .btn-payday:active{background:var(--brand-hi)}
+
+  /* ---------- sections ---------- */
+  h1{font-family:var(--display);font-size:24px;margin:22px 0 4px;text-wrap:balance}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 18px}
+  section{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+    margin:14px 0;
+    overflow:hidden;
+  }
+  section > h2{
+    font-size:12px;text-transform:uppercase;letter-spacing:.14em;
+    color:var(--muted);font-weight:700;
+    margin:0;padding:12px 14px 8px;
+  }
+  .row{
+    display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    padding:7px 14px;
+    border-top:1px solid var(--rule);
+    font-size:15px;
+  }
+  .row:first-of-type{border-top:none}
+  .row .lbl{color:var(--ink)}
+  .row .note{color:var(--muted);font-size:12px;display:block}
+  .row.sum{background:var(--panel-2);font-weight:700}
+  .row.sum .lbl{font-weight:700}
+  .row.hero{
+    background:var(--panel-2);
+    padding:12px 14px;
+  }
+  .row.hero .lbl{font-weight:700}
+  .row.hero .money{font-size:20px}
+  .row .btn-mini{margin-left:auto}
+  .row .btn-mini ~ .btn-mini{margin-left:6px}
+
+  /* progress to rat-race exit */
+  .progress-wrap{padding:10px 14px 14px;border-top:1px solid var(--rule)}
+  .progress-cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .progress-cap .money{font-weight:600;color:var(--ink)}
+  .bar{height:8px;border-radius:4px;background:var(--panel-2);border:1px solid var(--rule);overflow:hidden}
+  .bar > span{display:block;height:100%;background:var(--brand);border-radius:4px}
+  .escaped{
+    background:var(--gold-bg);color:var(--gold-ink);
+    border:1px solid var(--gold-edge);border-radius:10px;
+    padding:14px;margin:14px 0;
+    font-family:var(--display);font-size:18px;text-align:center;
+  }
+  .escaped small{display:block;font-family:var(--body);font-size:13px;margin-top:4px}
+
+  /* ---------- buttons ---------- */
+  .btn{
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--rule);border-radius:8px;
+    font-family:var(--body);font-size:14px;font-weight:600;
+    padding:12px 8px;cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  .btn:active{background:var(--panel-2)}
+  .btn-primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+  .btn-primary:active{background:var(--brand-hi)}
+  .btn-mini{
+    background:var(--panel-2);color:var(--ink);
+    border:1px solid var(--rule);border-radius:6px;
+    font-size:12px;font-weight:600;padding:4px 10px;cursor:pointer;flex-shrink:0;
+  }
+  .actions{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+    padding:12px 14px 14px;border-top:1px solid var(--rule);
+  }
+  .btn:focus-visible,.btn-mini:focus-visible,.btn-payday:focus-visible,input:focus-visible{
+    outline:2px solid var(--brand);outline-offset:2px;
+  }
+
+  /* ---------- ledger log ---------- */
+  .log .row{font-size:14px}
+  .log .row .lbl{color:var(--muted)}
+  .empty{padding:10px 14px 14px;color:var(--muted);font-size:14px;border-top:1px solid var(--rule)}
+
+  footer{display:flex;gap:8px;justify-content:center;margin:24px 0 10px}
+  footer .btn{font-size:13px;padding:9px 14px}
+
+  /* ---------- forms ---------- */
+  form h2{
+    font-size:12px;text-transform:uppercase;letter-spacing:.14em;
+    color:var(--muted);margin:22px 0 8px;
+  }
+  .field{margin:10px 0}
+  .field label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+  .field input{
+    width:100%;
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--rule);border-radius:8px;
+    font-family:var(--body);font-size:17px;
+    padding:11px 12px;
+    font-variant-numeric:tabular-nums;
+  }
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+  .form-actions{margin:24px 0 10px}
+  .form-actions .btn{width:100%;font-size:16px;padding:14px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+  .chip{
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--rule);border-radius:16px;
+    font-family:var(--body);font-size:13px;font-weight:600;
+    padding:8px 13px;cursor:pointer;
+  }
+  .chip.active{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+  .chip:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+  /* ---------- modal ---------- */
+  .overlay{
+    position:fixed;inset:0;z-index:50;
+    background:rgba(18,24,20,.55);
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  .sheet{
+    background:var(--panel);color:var(--ink);
+    width:100%;max-width:480px;
+    border-radius:14px 14px 0 0;
+    padding:18px 16px calc(18px + env(safe-area-inset-bottom));
+    max-height:85vh;overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .sheet h3{font-family:var(--display);font-size:20px;margin:0 0 4px}
+  .sheet .hint{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .sheet .err{color:var(--neg);font-size:13px;font-weight:600;margin:8px 0 0;min-height:18px}
+  .sheet-actions{display:flex;gap:8px;margin-top:16px}
+  .sheet-actions .btn{flex:1;font-size:15px;padding:13px}
+  .calc-line{
+    background:var(--panel-2);border:1px solid var(--rule);border-radius:8px;
+    padding:10px 12px;font-size:14px;margin-top:10px;
+    display:flex;justify-content:space-between;
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .sheet{animation:up .18s ease-out}
+    @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+  }
+</style>
+
+<div id="app"></div>
+<div id="modal-root"></div>
+
+<script>
+(function(){
+"use strict";
+
+var KEY = "cashflow-sheet-v1";
+var MAX_UNDO = 30;
+
+var EXPENSE_FIELDS = [
+  ["taxes","Taxes"],
+  ["mortgagePay","Home Mortgage Payment"],
+  ["schoolPay","School Loan Payment"],
+  ["carPay","Car Loan Payment"],
+  ["ccPay","Credit Card Payment"],
+  ["other","Other Expenses"]
+];
+var LIABILITY_FIELDS = [
+  ["homeMortgage","Home Mortgage", null],
+  ["schoolLoans","School Loans","schoolPay"],
+  ["carLoans","Car Loans","carPay"],
+  ["creditCards","Credit Cards","ccPay"]
+];
+
+/* The 12 CASHFLOW profession cards. Double-check against your physical cards —
+   any difference can be fixed in the form before starting. */
+var PROFESSIONS = [
+  {name:"Airline Pilot",   salary:9500,  taxes:2350, mortgagePay:1330, schoolPay:0,   carPay:300, ccPay:660, other:2210, perChild:480, savings:400, homeMortgage:143000, schoolLoans:0,      carLoans:15000, creditCards:22000},
+  {name:"Business Manager",salary:4600,  taxes:910,  mortgagePay:700,  schoolPay:60,  carPay:120, ccPay:140, other:1000, perChild:240, savings:400, homeMortgage:75000,  schoolLoans:12000,  carLoans:6000,  creditCards:4000},
+  {name:"Doctor (MD)",     salary:13200, taxes:3420, mortgagePay:1900, schoolPay:750, carPay:380, ccPay:270, other:2880, perChild:640, savings:400, homeMortgage:202000, schoolLoans:150000, carLoans:19000, creditCards:9000},
+  {name:"Engineer",        salary:4900,  taxes:1050, mortgagePay:700,  schoolPay:120, carPay:140, ccPay:120, other:1090, perChild:250, savings:400, homeMortgage:75000,  schoolLoans:12000,  carLoans:7000,  creditCards:4000},
+  {name:"Janitor",         salary:1600,  taxes:280,  mortgagePay:200,  schoolPay:0,   carPay:60,  ccPay:60,  other:300,  perChild:70,  savings:560, homeMortgage:20000,  schoolLoans:0,      carLoans:4000,  creditCards:2000},
+  {name:"Lawyer",          salary:7500,  taxes:1830, mortgagePay:1100, schoolPay:390, carPay:220, ccPay:180, other:1650, perChild:380, savings:400, homeMortgage:115000, schoolLoans:78000,  carLoans:11000, creditCards:6000},
+  {name:"Mechanic",        salary:2000,  taxes:360,  mortgagePay:300,  schoolPay:0,   carPay:60,  ccPay:60,  other:450,  perChild:110, savings:670, homeMortgage:31000,  schoolLoans:0,      carLoans:3000,  creditCards:2000},
+  {name:"Nurse",           salary:3100,  taxes:600,  mortgagePay:400,  schoolPay:30,  carPay:100, ccPay:90,  other:710,  perChild:170, savings:480, homeMortgage:47000,  schoolLoans:6000,   carLoans:5000,  creditCards:3000},
+  {name:"Police Officer",  salary:3000,  taxes:580,  mortgagePay:400,  schoolPay:0,   carPay:100, ccPay:60,  other:690,  perChild:160, savings:520, homeMortgage:46000,  schoolLoans:0,      carLoans:5000,  creditCards:2000},
+  {name:"Secretary",       salary:2500,  taxes:460,  mortgagePay:400,  schoolPay:0,   carPay:80,  ccPay:60,  other:570,  perChild:140, savings:710, homeMortgage:38000,  schoolLoans:0,      carLoans:4000,  creditCards:3000},
+  {name:"Teacher (K-12)",  salary:3300,  taxes:630,  mortgagePay:500,  schoolPay:60,  carPay:100, ccPay:90,  other:760,  perChild:180, savings:400, homeMortgage:50000,  schoolLoans:12000,  carLoans:5000,  creditCards:3000},
+  {name:"Truck Driver",    salary:2500,  taxes:460,  mortgagePay:400,  schoolPay:0,   carPay:80,  ccPay:60,  other:570,  perChild:140, savings:750, homeMortgage:38000,  schoolLoans:0,      carLoans:4000,  creditCards:3000}
+];
+
+var state = load();
+
+function blankState(){
+  return {
+    started:false,
+    player:"", profession:"",
+    salary:0,
+    expenses:{taxes:0,mortgagePay:0,schoolPay:0,carPay:0,ccPay:0,other:0},
+    perChild:0, children:0,
+    liabilities:{homeMortgage:0,schoolLoans:0,carLoans:0,creditCards:0},
+    bankLoan:0,
+    assets:[],       // {id,type:'stock'|'re',name,shares,costShare,downPay,cost,mortgage,cashflow}
+    cash:0,
+    savings:0,
+    track:"rat",     // 'rat' | 'fast'
+    ftStart:0,       // beginning Fast Track income (passive × 100)
+    ftDeals:[],      // {id,name,cost,income}
+    ftDream:null,
+    log:[],          // {t:label, d:delta or null}
+    history:[]
+  };
+}
+function load(){
+  try{
+    var raw = localStorage.getItem(KEY);
+    if(raw){ return JSON.parse(raw); }
+  }catch(e){}
+  return blankState();
+}
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ---------- derived numbers ---------- */
+function derived(){
+  var intDiv = 0, reBiz = 0;
+  state.assets.forEach(function(a){
+    if(a.type === "stock") intDiv += a.cashflow || 0;
+    else reBiz += a.cashflow || 0;
+  });
+  var passive = intDiv + reBiz;
+  var totalIncome = state.salary + passive;
+  var childExp = state.children * state.perChild;
+  var loanPay = Math.round(state.bankLoan * 0.10);
+  var fixed = 0;
+  EXPENSE_FIELDS.forEach(function(f){ fixed += state.expenses[f[0]] || 0; });
+  var totalExpenses = fixed + childExp + loanPay;
+  return {
+    intDiv:intDiv, reBiz:reBiz, passive:passive,
+    totalIncome:totalIncome, childExp:childExp, loanPay:loanPay,
+    totalExpenses:totalExpenses,
+    payday: totalIncome - totalExpenses,
+    out: passive > totalExpenses && totalExpenses >= 0 && passive > 0
+  };
+}
+
+/* ---------- helpers ---------- */
+function fmt(n){
+  var neg = n < 0;
+  var s = "$" + Math.abs(Math.round(n)).toLocaleString("en-US");
+  return neg ? "−" + s : s;
+}
+function fmtDelta(n){
+  return (n >= 0 ? "+" : "−") + "$" + Math.abs(Math.round(n)).toLocaleString("en-US");
+}
+function esc(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function num(id){
+  var el = document.getElementById(id);
+  if(!el) return 0;
+  var v = String(el.value).replace(/[^0-9]/g,"");
+  return v ? parseInt(v,10) : 0;
+}
+function txt(id){
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : "";
+}
+function snapshot(){
+  var h = state.history;
+  state.history = [];
+  var copy = JSON.parse(JSON.stringify(state));
+  state.history = h;
+  state.history.push(copy);
+  if(state.history.length > MAX_UNDO) state.history.shift();
+}
+function logIt(label, delta){
+  state.log.push({t:label, d:(delta === undefined ? null : delta)});
+  if(state.log.length > 60) state.log.shift();
+}
+function commit(){ save(); render(); }
+
+/* ---------- rendering ---------- */
+var app = document.getElementById("app");
+var modalRoot = document.getElementById("modal-root");
+
+function render(){
+  if(!state.started) renderSetup();
+  else renderPlay();
+}
+
+function renderSetup(){
+  var s = state;
+  var editing = s._editing;
+  var html = "";
+  html += "<h1>CASHFLOW Financial Statement</h1>";
+  html += "<p class='sub'>" + (editing
+    ? "Fix any numbers below — your cash, assets and history are kept."
+    : "Copy the numbers from your Profession Card, exactly as written. The sheet does all the math from here on.") + "</p>";
+  html += "<form id='setup' autocomplete='off'>";
+
+  if(!editing){
+    html += "<h2 style='margin-top:0'>Profession card</h2>";
+    html += "<div class='chips'><button type='button' class='chip' data-prof='-1'>Random</button>";
+    PROFESSIONS.forEach(function(p,i){
+      html += "<button type='button' class='chip' data-prof='" + i + "'>" + esc(p.name) + "</button>";
+    });
+    html += "</div>";
+    html += "<p class='sub' style='margin:8px 0 0;font-size:13px'>Tap a card to fill the sheet — every number below stays editable. Or skip this and type your own.</p>";
+  }
+
+  html += "<div class='grid2'>";
+  html += field("f_player","Player name", s.player, "text", "e.g. Jibril");
+  html += field("f_prof","Profession", s.profession, "text", "e.g. Business Manager");
+  html += "</div>";
+
+  html += "<h2>Income</h2>";
+  html += field("f_salary","Salary (per month)", s.salary || "", "money", "4,600");
+
+  html += "<h2>Expenses (per month)</h2>";
+  html += "<div class='grid2'>";
+  EXPENSE_FIELDS.forEach(function(f){
+    html += field("f_"+f[0], f[1], s.expenses[f[0]] || "", "money", "0");
+  });
+  html += field("f_perChild","Per Child Expense", s.perChild || "", "money", "240");
+  html += "</div>";
+
+  html += "<h2>Assets</h2>";
+  html += field("f_savings","Savings", editing ? (s.savings || "") : (s.savings || ""), "money", "400");
+
+  html += "<h2>Liabilities</h2>";
+  html += "<div class='grid2'>";
+  LIABILITY_FIELDS.forEach(function(f){
+    html += field("f_"+f[0], f[1], s.liabilities[f[0]] || "", "money", "0");
+  });
+  html += "</div>";
+
+  html += "<div class='form-actions'><button type='submit' class='btn btn-primary'>" +
+    (editing ? "Save changes" : "Start playing") + "</button></div>";
+  if(editing){
+    html += "<div class='form-actions' style='margin-top:0'><button type='button' id='cancel-edit' class='btn'>Cancel</button></div>";
+  }
+  html += "</form>";
+  app.innerHTML = html;
+
+  document.getElementById("setup").addEventListener("submit", function(ev){
+    ev.preventDefault();
+    var wasEditing = !!state._editing;
+    state.player = txt("f_player");
+    state.profession = txt("f_prof");
+    state.salary = num("f_salary");
+    EXPENSE_FIELDS.forEach(function(f){ state.expenses[f[0]] = num("f_"+f[0]); });
+    state.perChild = num("f_perChild");
+    LIABILITY_FIELDS.forEach(function(f){ state.liabilities[f[0]] = num("f_"+f[0]); });
+    if(!wasEditing){
+      state.savings = num("f_savings");
+      var d = derived();
+      state.cash = d.payday + state.savings;
+      state.savings = 0; // paid out as cash at game start, per the rules
+      logIt("Game start — cash flow + savings", state.cash);
+    }
+    state.started = true;
+    delete state._editing;
+    commit();
+    window.scrollTo(0,0);
+  });
+  var cancel = document.getElementById("cancel-edit");
+  if(cancel) cancel.addEventListener("click", function(){
+    delete state._editing;
+    state.started = true;
+    commit();
+  });
+
+  app.querySelectorAll("[data-prof]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var i = parseInt(b.getAttribute("data-prof"), 10);
+      if(i < 0) i = Math.floor(Math.random() * PROFESSIONS.length);
+      fillProfession(PROFESSIONS[i]);
+      app.querySelectorAll(".chip").forEach(function(c){ c.classList.remove("active"); });
+      var chip = app.querySelector("[data-prof='" + i + "']");
+      if(chip) chip.classList.add("active");
+    });
+  });
+
+  function field(id,label,val,kind,ph){
+    var attrs = kind === "money" ? " inputmode='numeric' pattern='[0-9,]*'" : "";
+    return "<div class='field'><label for='"+id+"'>"+esc(label)+"</label>" +
+      "<input id='"+id+"' type='text'"+attrs+" placeholder='"+esc(ph)+"' value='"+esc(val)+"'></div>";
+  }
+}
+
+function fillProfession(p){
+  var set = function(id, v){ var el = document.getElementById(id); if(el) el.value = v; };
+  set("f_prof", p.name);
+  ["salary","taxes","mortgagePay","schoolPay","carPay","ccPay","other","perChild","savings",
+   "homeMortgage","schoolLoans","carLoans","creditCards"].forEach(function(k){
+    set("f_" + k, p[k] ? p[k].toLocaleString("en-US") : "0");
+  });
+}
+
+function renderPlay(){
+  if(state.track === "fast"){ renderFast(); return; }
+  var d = derived();
+  var html = "";
+
+  /* header */
+  html += "<div class='topbar'><div class='topbar-inner'>";
+  html += "<div><p class='cash-label'>Cash on hand</p><p class='cash-amount money'>" + fmt(state.cash) + "</p></div>";
+  html += "<button class='btn-payday' id='act-payday'>PAYDAY<small>collect " + fmt(d.payday) + "</small></button>";
+  html += "</div></div>";
+
+  var who = [state.player, state.profession].filter(Boolean).join(" · ");
+  html += "<h1>Financial Statement</h1>";
+  html += "<p class='sub'>" + (who ? esc(who) : "CASHFLOW companion sheet") + "</p>";
+
+  /* rat race status */
+  if(d.out){
+    html += "<div class='escaped'>You're out of the Rat Race!<small>Passive income " + fmt(d.passive) +
+      " now beats your total expenses of " + fmt(d.totalExpenses) + ". Move to the Fast Track.</small>" +
+      "<div style='margin-top:12px'><button class='btn btn-primary' id='enter-fast'>Enter the Fast Track</button></div></div>";
+  }
+
+  /* income statement */
+  html += "<section><h2>Income</h2>";
+  html += row("Salary", fmt(state.salary));
+  html += row("Interest / Dividends", fmt(d.intDiv));
+  html += row("Real Estate / Business", fmt(d.reBiz));
+  html += row("Passive Income", fmt(d.passive), "sum");
+  html += row("Total Income", fmt(d.totalIncome), "sum");
+  html += "</section>";
+
+  /* expenses */
+  html += "<section><h2>Expenses</h2>";
+  EXPENSE_FIELDS.forEach(function(f){
+    html += row(f[1], fmt(state.expenses[f[0]] || 0));
+  });
+  html += row("Child Expenses <span class='note'>" + state.children + " × " + fmt(state.perChild) + " per child</span>", fmt(d.childExp));
+  html += row("Bank Loan Payment <span class='note'>10% of " + fmt(state.bankLoan) + " loan</span>", fmt(d.loanPay));
+  html += row("Total Expenses", fmt(d.totalExpenses), "sum");
+  html += "</section>";
+
+  /* cash flow */
+  html += "<section>";
+  html += "<div class='row hero'><span class='lbl'>Monthly Cash Flow (PAYDAY)</span><span class='money " +
+    (d.payday >= 0 ? "pos" : "neg") + "'>" + fmt(d.payday) + "</span></div>";
+  if(!d.out){
+    var pct = d.totalExpenses > 0 ? Math.min(100, Math.round(d.passive / d.totalExpenses * 100)) : 0;
+    html += "<div class='progress-wrap'><div class='progress-cap'><span>Escape the Rat Race</span>" +
+      "<span><span class='money'>" + fmt(d.passive) + "</span> of " + fmt(d.totalExpenses) + " passive</span></div>" +
+      "<div class='bar'><span style='width:" + pct + "%'></span></div></div>";
+  }
+  html += "</section>";
+
+  /* balance sheet: assets */
+  html += "<section><h2>Assets</h2>";
+  if(state.assets.length === 0){
+    html += "<div class='empty'>No assets yet. Land on a Deal, buy something that pays you.</div>";
+  } else {
+    state.assets.forEach(function(a){
+      var detail;
+      if(a.type === "stock"){
+        detail = a.shares.toLocaleString("en-US") + " shares @ " + fmt(a.costShare) +
+          (a.cashflow ? " · " + fmt(a.cashflow) + "/mo" : "");
+      } else {
+        detail = "cost " + fmt(a.cost) + " · " + fmt(a.cashflow) + "/mo cash flow";
+      }
+      html += "<div class='row'><span class='lbl'>" + esc(a.name) +
+        "<span class='note'>" + detail + "</span></span>" +
+        (a.type === "stock" ? "" : "<button class='btn-mini' data-upgrade='" + a.id + "'>Upgrade</button>") +
+        "<button class='btn-mini' data-sell='" + a.id + "'>Sell</button></div>";
+    });
+  }
+  html += "</section>";
+
+  /* balance sheet: liabilities */
+  html += "<section><h2>Liabilities</h2>";
+  var anyLiab = false;
+  LIABILITY_FIELDS.forEach(function(f){
+    var amt = state.liabilities[f[0]] || 0;
+    if(amt <= 0) return;
+    anyLiab = true;
+    html += "<div class='row'><span class='lbl'>" + f[1] + "</span><span class='money'>" + fmt(amt) + "</span>" +
+      "<button class='btn-mini' data-payoff='" + f[0] + "'>Pay off</button></div>";
+  });
+  state.assets.forEach(function(a){
+    if(a.type !== "stock" && a.mortgage > 0){
+      anyLiab = true;
+      html += "<div class='row'><span class='lbl'>" + esc(a.name) + " mortgage</span><span class='money'>" + fmt(a.mortgage) + "</span></div>";
+    }
+  });
+  if(state.bankLoan > 0){
+    anyLiab = true;
+    html += "<div class='row'><span class='lbl'>Bank Loan</span><span class='money'>" + fmt(state.bankLoan) + "</span>" +
+      "<button class='btn-mini' data-act='loan'>Repay</button></div>";
+  }
+  if(!anyLiab) html += "<div class='empty'>Debt free.</div>";
+  html += "</section>";
+
+  /* actions */
+  html += "<section><h2>Game actions</h2><div class='actions'>";
+  html += "<button class='btn' data-act='buy'>Buy deal</button>";
+  html += "<button class='btn' data-act='doodad'>Doodad</button>";
+  html += "<button class='btn' data-act='baby'>Baby</button>";
+  html += "<button class='btn' data-act='charity'>Charity</button>";
+  html += "<button class='btn' data-act='downsized'>Downsized</button>";
+  html += "<button class='btn' data-act='loan'>Bank loan</button>";
+  html += "<button class='btn' data-act='adjust'>Adjust cash</button>";
+  html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
+  html += "</div></section>";
+
+  /* ledger */
+  html += "<section class='log'><h2>Ledger</h2>";
+  if(state.log.length === 0){
+    html += "<div class='empty'>Every payday, deal and doodad shows up here.</div>";
+  } else {
+    state.log.slice().reverse().slice(0,12).forEach(function(e){
+      html += "<div class='row'><span class='lbl'>" + esc(e.t) + "</span>" +
+        (e.d === null ? "" : "<span class='money " + (e.d >= 0 ? "pos" : "neg") + "'>" + fmtDelta(e.d) + "</span>") +
+        "</div>";
+    });
+  }
+  html += "</section>";
+
+  html += "<footer><button class='btn' id='edit-setup'>Edit numbers</button><button class='btn' id='new-game'>New game</button></footer>";
+
+  app.innerHTML = html;
+  wirePlay();
+
+  function row(lbl, val, cls){
+    return "<div class='row" + (cls ? " " + cls : "") + "'><span class='lbl'>" + lbl + "</span><span class='money'>" + val + "</span></div>";
+  }
+}
+
+function wirePlay(){
+  document.getElementById("act-payday").addEventListener("click", function(){
+    var d = derived();
+    snapshot();
+    state.cash += d.payday;
+    logIt("PAYDAY", d.payday);
+    commit();
+  });
+  app.querySelectorAll("[data-act]").forEach(function(b){
+    b.addEventListener("click", function(){ runAction(b.getAttribute("data-act")); });
+  });
+  app.querySelectorAll("[data-sell]").forEach(function(b){
+    b.addEventListener("click", function(){ sellModal(b.getAttribute("data-sell")); });
+  });
+  app.querySelectorAll("[data-upgrade]").forEach(function(b){
+    b.addEventListener("click", function(){ upgradeModal(b.getAttribute("data-upgrade")); });
+  });
+  app.querySelectorAll("[data-payoff]").forEach(function(b){
+    b.addEventListener("click", function(){ payoffModal(b.getAttribute("data-payoff")); });
+  });
+  document.getElementById("edit-setup").addEventListener("click", function(){
+    state._editing = true;
+    state.started = false;
+    render();
+    window.scrollTo(0,0);
+  });
+  document.getElementById("new-game").addEventListener("click", confirmNewGame);
+  var ef = document.getElementById("enter-fast");
+  if(ef) ef.addEventListener("click", enterFastModal);
+}
+
+function confirmNewGame(){
+  openModal(
+    "<h3>Start a new game?</h3><p class='hint'>This clears the whole sheet — cash, assets, ledger, everything.</p>",
+    "Yes, start over",
+    function(){
+      state = blankState();
+      commit();
+      closeModal();
+      window.scrollTo(0,0);
+      return true;
+    }
+  );
+}
+
+/* ---------- Fast Track ---------- */
+function ftTotalIncome(){
+  var t = state.ftStart || 0;
+  (state.ftDeals || []).forEach(function(a){ t += a.income || 0; });
+  return t;
+}
+
+function enterFastModal(){
+  var d = derived();
+  var roundedPassive = Math.round(d.passive / 1000) * 1000;
+  var start = roundedPassive * 100;
+  openModal(
+    "<h3>Enter the Fast Track</h3><p class='hint'>Move your rat onto the Fast Track. Your beginning CASHFLOW Day income is your passive income (rounded to the nearest $1,000) × 100. Your starting cash resets to one CASHFLOW Day's income — your Rat Race cash on hand is left behind.</p>" +
+    "<div class='calc-line'><span>Passive income " + fmt(d.passive) + ", rounded</span><span class='money'>" + fmt(roundedPassive) + "</span></div>" +
+    "<div class='calc-line'><span>" + fmt(roundedPassive) + " × 100</span><span class='money'>" + fmt(start) + "</span></div>" +
+    "<div class='calc-line'><span>Starting cash</span><span class='money'>" + fmt(start) + "</span></div>",
+    "Enter the Fast Track",
+    function(){
+      snapshot();
+      state.track = "fast";
+      state.ftStart = start;
+      state.ftDeals = [];
+      state.ftDream = null;
+      state.cash = start;
+      logIt("Entered the Fast Track — " + fmt(start) + " per CASHFLOW Day", start);
+      commit(); return true;
+    });
+}
+
+function renderFast(){
+  var ftTotal = ftTotalIncome();
+  var gain = ftTotal - (state.ftStart || 0);
+  var won = !!state.ftDream || gain >= 50000;
+  var html = "";
+
+  html += "<div class='topbar'><div class='topbar-inner'>";
+  html += "<div><p class='cash-label'>Cash on hand</p><p class='cash-amount money'>" + fmt(state.cash) + "</p></div>";
+  html += "<button class='btn-payday' id='act-ftday'>CASHFLOW DAY<small>collect " + fmt(ftTotal) + "</small></button>";
+  html += "</div></div>";
+
+  var who = [state.player, state.profession].filter(Boolean).join(" · ");
+  html += "<h1>Fast Track</h1>";
+  html += "<p class='sub'>" + (who ? esc(who) : "Out of the Rat Race") + "</p>";
+
+  if(won){
+    html += "<div class='escaped'>" +
+      (state.ftDream ? "You bought your Dream — " + esc(state.ftDream) + "!" : "You added " + fmt(gain) + " in cash flow!") +
+      "<small>You win the game. Take a bow.</small></div>";
+  }
+
+  html += "<section><h2>CASHFLOW Day income</h2>";
+  html += "<div class='row'><span class='lbl'>Beginning income <span class='note'>passive income × 100</span></span><span class='money'>" + fmt(state.ftStart || 0) + "</span></div>";
+  (state.ftDeals || []).forEach(function(a){
+    html += "<div class='row'><span class='lbl'>" + esc(a.name) + "<span class='note'>cost " + fmt(a.cost) + "</span></span><span class='money'>" + fmt(a.income) + "</span></div>";
+  });
+  html += "<div class='row sum'><span class='lbl'>Total income</span><span class='money'>" + fmt(ftTotal) + "</span></div>";
+  html += "</section>";
+
+  if(!won){
+    var pct = Math.min(100, Math.round(gain / 50000 * 100));
+    html += "<section><div class='row hero'><span class='lbl'>New cash flow</span><span class='money pos'>" + fmt(gain) + "</span></div>";
+    html += "<div class='progress-wrap'><div class='progress-cap'><span>Win at +$50,000 — or buy your Dream</span>" +
+      "<span><span class='money'>" + fmt(gain) + "</span> of $50,000</span></div>" +
+      "<div class='bar'><span style='width:" + pct + "%'></span></div></div></section>";
+  }
+
+  html += "<section><h2>Game actions</h2><div class='actions'>";
+  html += "<button class='btn' data-act='ftdeal'>Buy deal</button>";
+  html += "<button class='btn' data-act='ftdream'>Buy your Dream</button>";
+  html += "<button class='btn' data-act='ftcharity'>Charity</button>";
+  html += "<button class='btn' data-act='adjust'>Adjust cash</button>";
+  html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
+  html += "</div></section>";
+
+  html += "<section class='log'><h2>Ledger</h2>";
+  if(state.log.length === 0){
+    html += "<div class='empty'>Nothing yet.</div>";
+  } else {
+    state.log.slice().reverse().slice(0,12).forEach(function(e){
+      html += "<div class='row'><span class='lbl'>" + esc(e.t) + "</span>" +
+        (e.d === null ? "" : "<span class='money " + (e.d >= 0 ? "pos" : "neg") + "'>" + fmtDelta(e.d) + "</span>") +
+        "</div>";
+    });
+  }
+  html += "</section>";
+
+  html += "<footer><button class='btn' id='new-game'>New game</button></footer>";
+
+  app.innerHTML = html;
+
+  document.getElementById("act-ftday").addEventListener("click", function(){
+    var t = ftTotalIncome();
+    snapshot();
+    state.cash += t;
+    logIt("CASHFLOW Day", t);
+    commit();
+  });
+  app.querySelectorAll("[data-act]").forEach(function(b){
+    b.addEventListener("click", function(){ runAction(b.getAttribute("data-act")); });
+  });
+  document.getElementById("new-game").addEventListener("click", confirmNewGame);
+}
+
+/* ---------- actions ---------- */
+function runAction(act){
+  var d = derived();
+  switch(act){
+
+    case "doodad":
+      openModal(
+        "<h3>Doodad</h3><p class='hint'>Read the card aloud, then pay up.</p>" +
+        moneyField("m_amt","Amount","") + labelField("m_lbl","What was it? (optional)","e.g. New golf clubs") + leftLine(),
+        "Pay",
+        function(){
+          var amt = num("m_amt");
+          if(amt <= 0) return err("Enter the doodad amount.");
+          var label = "Doodad" + (txt("m_lbl") ? " — " + txt("m_lbl") : "");
+          return payOrBorrow(amt, function(){
+            state.cash -= amt;
+            logIt(label, -amt);
+          });
+        });
+      liveCalc(["m_amt"], function(){ setLeft(state.cash - num("m_amt")); });
+      break;
+
+    case "baby":
+      if(state.children >= 3){
+        openModal("<h3>Baby</h3><p class='hint'>House full — the game caps you at 3 children. No expense change.</p>", "OK", function(){ return true; });
+        break;
+      }
+      openModal(
+        "<h3>Baby!</h3><p class='hint'>Congratulations. Child expenses go up by " + fmt(state.perChild) + " per month.</p>",
+        "Add child",
+        function(){
+          snapshot();
+          state.children += 1;
+          logIt("Baby #" + state.children + " — expenses +" + fmt(state.perChild) + "/mo");
+          commit(); return true;
+        });
+      break;
+
+    case "charity":
+      var tithe = Math.round(d.totalIncome * 0.10);
+      openModal(
+        "<h3>Charity</h3><p class='hint'>Donate 10% of your Total Income. You may roll 1 or 2 dice for the next 3 turns.</p>" +
+        "<div class='calc-line'><span>10% of " + fmt(d.totalIncome) + "</span><span class='money'>" + fmt(tithe) + "</span></div>" + leftLine(),
+        "Donate " + fmt(tithe),
+        function(){
+          return payOrBorrow(tithe, function(){
+            state.cash -= tithe;
+            logIt("Charity — 10% of total income", -tithe);
+          });
+        });
+      setLeft(state.cash - tithe);
+      break;
+
+    case "downsized":
+      openModal(
+        "<h3>Downsized</h3><p class='hint'>Pay one full set of expenses and sit out 2 turns.</p>" +
+        "<div class='calc-line'><span>Total Expenses</span><span class='money'>" + fmt(d.totalExpenses) + "</span></div>" + leftLine(),
+        "Pay " + fmt(d.totalExpenses),
+        function(){
+          return payOrBorrow(d.totalExpenses, function(){
+            state.cash -= d.totalExpenses;
+            logIt("Downsized — paid full expenses", -d.totalExpenses);
+          });
+        });
+      setLeft(state.cash - d.totalExpenses);
+      break;
+
+    case "loan":
+      openModal(
+        "<h3>Bank loan</h3><p class='hint'>Loans come in $1,000 steps — whatever you type is rounded up. Monthly payment is 10% of the loan." +
+        (state.bankLoan > 0 ? " Current loan: <b class='money'>" + fmt(state.bankLoan) + "</b>." : "") + "</p>" +
+        moneyField("m_amt","Amount","","e.g. 2,000") +
+        "<div class='calc-line'><span>Rounded to $1,000 steps</span><span class='money' id='m_calc'>$0</span></div>" +
+        "<div class='sheet-actions' style='margin-top:8px'>" +
+        "<button class='btn' id='m_repay'" + (state.bankLoan > 0 ? "" : " disabled") + ">Repay</button>" +
+        "<button class='btn btn-primary' id='m_borrow'>Borrow</button></div>",
+        null, null);
+      liveCalc(["m_amt"], function(){
+        var r = Math.ceil(num("m_amt") / 1000) * 1000;
+        document.getElementById("m_calc").textContent = fmt(r) + " · " + fmt(Math.round(r * 0.10)) + "/mo";
+      });
+      document.getElementById("m_borrow").addEventListener("click", function(){
+        var amt = num("m_amt");
+        if(amt <= 0) return err("Enter an amount.");
+        amt = Math.ceil(amt / 1000) * 1000;
+        snapshot();
+        state.bankLoan += amt;
+        state.cash += amt;
+        logIt("Bank loan taken (payment now " + fmt(Math.round(state.bankLoan*0.10)) + "/mo)", amt);
+        commit(); closeModal();
+      });
+      document.getElementById("m_repay").addEventListener("click", function(){
+        var amt = num("m_amt");
+        if(amt <= 0) return err("Enter an amount.");
+        amt = Math.min(Math.ceil(amt / 1000) * 1000, state.bankLoan);
+        if(amt > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
+        snapshot();
+        state.bankLoan -= amt;
+        state.cash -= amt;
+        logIt("Bank loan repaid", -amt);
+        commit(); closeModal();
+      });
+      break;
+
+    case "buy":
+      buyModal();
+      break;
+
+    case "adjust":
+      openModal(
+        "<h3>Adjust cash</h3><p class='hint'>For anything else — a Market card windfall, a trade with another player, or fixing a mistake.</p>" +
+        moneyField("m_amt","Amount","") + labelField("m_lbl","Reason","e.g. Market card") +
+        "<div class='sheet-actions' style='margin-top:8px'>" +
+        "<button class='btn' id='m_minus'>− Remove</button>" +
+        "<button class='btn btn-primary' id='m_plus'>+ Add</button></div>",
+        null, null);
+      var adj = function(sign){
+        var amt = num("m_amt");
+        if(amt <= 0) return err("Enter an amount.");
+        if(sign < 0 && amt > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
+        snapshot();
+        state.cash += sign * amt;
+        logIt(txt("m_lbl") || "Cash adjustment", sign * amt);
+        commit(); closeModal();
+      };
+      document.getElementById("m_plus").addEventListener("click", function(){ adj(1); });
+      document.getElementById("m_minus").addEventListener("click", function(){ adj(-1); });
+      break;
+
+    case "ftdeal":
+      openModal(
+        "<h3>Buy a Fast Track deal</h3><p class='hint'>Copy from the card: what it costs now and how much CASHFLOW Day income it adds.</p>" +
+        labelField("m_name","Name","e.g. Pizza franchise") +
+        "<div class='grid2'>" + moneyField("m_cost","Cost","") + moneyField("m_inc","Income it adds","") + "</div>" + leftLine(),
+        "Buy",
+        function(){
+          var name = txt("m_name");
+          if(!name) return err("Give it a name.");
+          var cost = num("m_cost"), inc = num("m_inc");
+          if(cost > state.cash) return err("Costs " + fmt(cost) + " — you have " + fmt(state.cash) + ". No bank loans on the Fast Track.");
+          snapshot();
+          if(!state.ftDeals) state.ftDeals = [];
+          state.ftDeals.push({id:Date.now(), name:name, cost:cost, income:inc});
+          state.cash -= cost;
+          logIt("Bought " + name + (inc ? " (+" + fmt(inc) + " income)" : ""), -cost);
+          commit(); return true;
+        });
+      liveCalc(["m_cost"], function(){ setLeft(state.cash - num("m_cost")); });
+      break;
+
+    case "ftdream":
+      openModal(
+        "<h3>Buy your Dream</h3><p class='hint'>Land on your Dream space and pay its price — that wins the game.</p>" +
+        labelField("m_name","Your Dream","e.g. Dinner on a yacht") +
+        moneyField("m_cost","Price","") + leftLine(),
+        "Buy the Dream",
+        function(){
+          var name = txt("m_name");
+          if(!name) return err("Name your Dream.");
+          var cost = num("m_cost");
+          if(cost > state.cash) return err("Costs " + fmt(cost) + " — you have " + fmt(state.cash) + ".");
+          snapshot();
+          state.cash -= cost;
+          state.ftDream = name;
+          logIt("Bought Dream: " + name + " — WINNER!", -cost);
+          commit(); return true;
+        });
+      liveCalc(["m_cost"], function(){ setLeft(state.cash - num("m_cost")); });
+      break;
+
+    case "ftcharity":
+      var ftT = ftTotalIncome();
+      var t10 = Math.round(ftT * 0.10);
+      openModal(
+        "<h3>Charity</h3><p class='hint'>Donate 10% of your CASHFLOW Day income to roll extra dice.</p>" +
+        "<div class='calc-line'><span>10% of " + fmt(ftT) + "</span><span class='money'>" + fmt(t10) + "</span></div>" + leftLine(),
+        "Donate " + fmt(t10),
+        function(){
+          if(t10 > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
+          snapshot();
+          state.cash -= t10;
+          logIt("Charity — 10% of CASHFLOW Day income", -t10);
+          commit(); return true;
+        });
+      setLeft(state.cash - t10);
+      break;
+
+    case "undo":
+      if(state.history.length){
+        var prev = state.history.pop();
+        prev.history = state.history;
+        state = prev;
+        commit();
+      }
+      break;
+  }
+}
+
+/* ---------- buy / sell / payoff modals ---------- */
+function buyModal(){
+  openModal(
+    "<h3>Buy a deal</h3><p class='hint'>What kind of asset is on the card?</p>" +
+    "<div class='sheet-actions' style='margin-top:8px'>" +
+    "<button class='btn' id='m_stock'>Stocks / CDs</button>" +
+    "<button class='btn btn-primary' id='m_prop'>Real estate / Business</button></div>",
+    null, null);
+  document.getElementById("m_stock").addEventListener("click", buyStockModal);
+  document.getElementById("m_prop").addEventListener("click", buyPropModal);
+}
+
+function buyStockModal(){
+  openModal(
+    "<h3>Buy stocks / funds / CDs</h3><p class='hint'>Copy from the card.</p>" +
+    labelField("m_name","Name","e.g. OK4U Fund") +
+    "<div class='grid2'>" + moneyField("m_shares","# of shares","") + moneyField("m_cost","Cost per share","") + "</div>" +
+    moneyField("m_div","Dividend per month (total, usually 0)","0") +
+    "<div class='calc-line'><span>Total cost</span><span class='money' id='m_calc'>$0</span></div>" + leftLine(),
+    "Buy",
+    function(){
+      var name = txt("m_name"), shares = num("m_shares"), cost = num("m_cost");
+      if(!name) return err("Give it a name.");
+      if(shares <= 0) return err("How many shares?");
+      var total = shares * cost;
+      var div = num("m_div");
+      return payOrBorrow(total, function(){
+        state.assets.push({id:Date.now(), type:"stock", name:name, shares:shares, costShare:cost, cashflow:div, mortgage:0});
+        state.cash -= total;
+        logIt("Bought " + shares.toLocaleString("en-US") + " × " + name, -total);
+      });
+    });
+  liveCalc(["m_shares","m_cost"], function(){
+    var total = num("m_shares") * num("m_cost");
+    document.getElementById("m_calc").textContent = fmt(total);
+    setLeft(state.cash - total);
+  });
+}
+
+function buyPropModal(){
+  openModal(
+    "<h3>Buy real estate / business</h3><p class='hint'>Copy from the card. You pay the down payment now; the mortgage becomes a liability.</p>" +
+    labelField("m_name","Name","e.g. 3/2 house") +
+    "<div class='grid2'>" + moneyField("m_down","Down payment","") + moneyField("m_cost","Full cost","") + "</div>" +
+    "<div class='grid2'>" + moneyField("m_mort","Mortgage / liability","") + moneyField("m_cf","Cash flow per month","") + "</div>" + leftLine(),
+    "Buy",
+    function(){
+      var name = txt("m_name"), down = num("m_down");
+      if(!name) return err("Give it a name.");
+      var cost = num("m_cost"), mort = num("m_mort"), cf = num("m_cf");
+      return payOrBorrow(down, function(){
+        state.assets.push({id:Date.now(), type:"re", name:name, downPay:down, cost:cost, mortgage:mort, cashflow:cf});
+        state.cash -= down;
+        logIt("Bought " + name + (cf ? " (+" + fmt(cf) + "/mo)" : ""), -down);
+      });
+    });
+  /* mortgage auto-fills as full cost minus down payment, until edited by hand */
+  var mortTouched = false;
+  document.getElementById("m_mort").addEventListener("input", function(){ mortTouched = true; });
+  liveCalc(["m_down","m_cost"], function(){
+    setLeft(state.cash - num("m_down"));
+    if(mortTouched) return;
+    document.getElementById("m_mort").value = fmtInput(Math.max(0, num("m_cost") - num("m_down")));
+  });
+}
+
+function upgradeModal(id){
+  var a = state.assets.find(function(x){ return String(x.id) === String(id); });
+  if(!a || a.type === "stock") return;
+  openModal(
+    "<h3>Upgrade " + esc(a.name) + "</h3><p class='hint'>For cards that level up a business you already own — like Direct 2 You Level 2. You pay the new card's cost now, and the asset earns at its new rate.</p>" +
+    labelField("m_name","New name","", a.name) +
+    "<div class='grid2'>" + moneyField("m_cost","Cost (paid now)","") +
+    moneyField("m_cf","New cash flow per month", fmtInput(a.cashflow)) + "</div>" + leftLine(),
+    "Upgrade",
+    function(){
+      var cost = num("m_cost"), newName = txt("m_name"), newCf = num("m_cf");
+      return payOrBorrow(cost, function(){
+        var live = state.assets.find(function(x){ return String(x.id) === String(id); });
+        live.name = newName || live.name;
+        live.cost = (live.cost || 0) + cost;
+        live.cashflow = newCf;
+        state.cash -= cost;
+        logIt("Upgraded to " + live.name + (live.cashflow ? " (+" + fmt(live.cashflow) + "/mo)" : ""), -cost);
+      });
+    });
+  liveCalc(["m_cost"], function(){ setLeft(state.cash - num("m_cost")); });
+}
+
+function sellModal(id){
+  var a = state.assets.find(function(x){ return String(x.id) === String(id); });
+  if(!a) return;
+  if(a.type === "stock"){
+    openModal(
+      "<h3>Sell " + esc(a.name) + "</h3><p class='hint'>You hold " + a.shares.toLocaleString("en-US") +
+      " shares (bought @ " + fmt(a.costShare) + ").</p>" +
+      "<div class='grid2'>" + moneyField("m_qty","Shares to sell", fmtInput(a.shares)) + moneyField("m_price","Price per share","") + "</div>" +
+      "<div class='calc-line'><span>You receive</span><span class='money' id='m_calc'>$0</span></div>" + leftLine(),
+      "Sell",
+      function(){
+        var qty = num("m_qty"), price = num("m_price");
+        if(qty <= 0 || qty > a.shares) return err("You hold " + a.shares.toLocaleString("en-US") + " shares.");
+        var proceeds = qty * price;
+        snapshot();
+        var live = state.assets.find(function(x){ return String(x.id) === String(id); });
+        live.shares -= qty;
+        if(live.shares === 0) state.assets = state.assets.filter(function(x){ return String(x.id) !== String(id); });
+        state.cash += proceeds;
+        logIt("Sold " + qty.toLocaleString("en-US") + " × " + a.name + " @ " + fmt(price), proceeds);
+        commit(); return true;
+      });
+    liveCalc(["m_qty","m_price"], function(){
+      var proceeds = num("m_qty") * num("m_price");
+      document.getElementById("m_calc").textContent = fmt(proceeds);
+      setLeft(state.cash + proceeds);
+    });
+  } else {
+    openModal(
+      "<h3>Sell " + esc(a.name) + "</h3><p class='hint'>Enter the sale price from the Market card. The mortgage of " +
+      fmt(a.mortgage) + " is paid off from the sale; you pocket the rest" +
+      (a.cashflow ? ", and its " + fmt(a.cashflow) + "/mo cash flow stops" : "") + ".</p>" +
+      moneyField("m_price","Sale price","") +
+      "<div class='calc-line'><span>Added to your cash</span><span class='money' id='m_calc'>$0</span></div>" + leftLine(),
+      "Sell",
+      function(){
+        var price = num("m_price");
+        if(price <= 0) return err("Enter the sale price.");
+        var proceeds = price - (a.mortgage || 0);
+        snapshot();
+        state.assets = state.assets.filter(function(x){ return String(x.id) !== String(id); });
+        state.cash += proceeds;
+        logIt("Sold " + a.name + " for " + fmt(price) + (a.mortgage ? " (mortgage paid off)" : ""), proceeds);
+        commit(); return true;
+      });
+    liveCalc(["m_price"], function(){
+      var proceeds = num("m_price") - (a.mortgage || 0);
+      document.getElementById("m_calc").textContent = fmt(proceeds);
+      setLeft(state.cash + proceeds);
+    });
+  }
+}
+
+function payoffModal(key){
+  var f = LIABILITY_FIELDS.find(function(x){ return x[0] === key; });
+  if(!f) return;
+  var amt = state.liabilities[key] || 0;
+  var expKey = f[2] || (key === "homeMortgage" ? "mortgagePay" : null);
+  var expAmt = expKey ? (state.expenses[expKey] || 0) : 0;
+  openModal(
+    "<h3>Pay off " + f[1] + "</h3><p class='hint'>Debts must be paid in full. This removes the " +
+    fmt(expAmt) + "/mo payment from your expenses — raising your PAYDAY.</p>" +
+    "<div class='calc-line'><span>" + f[1] + "</span><span class='money'>" + fmt(amt) + "</span></div>" + leftLine(),
+    "Pay " + fmt(amt),
+    function(){
+      return payOrBorrow(amt, function(){
+        state.cash -= amt;
+        state.liabilities[key] = 0;
+        if(expKey) state.expenses[expKey] = 0;
+        logIt("Paid off " + f[1] + (expAmt ? " (expenses −" + fmt(expAmt) + "/mo)" : ""), -amt);
+      });
+    });
+  setLeft(state.cash - amt);
+}
+
+/* ---------- modal machinery ---------- */
+function moneyField(id,label,val,ph){
+  return "<div class='field'><label for='"+id+"'>"+esc(label)+"</label>" +
+    "<input id='"+id+"' type='text' inputmode='numeric' pattern='[0-9,]*' value='"+esc(val)+"' placeholder='"+esc(ph||"")+"'></div>";
+}
+function labelField(id,label,ph,val){
+  return "<div class='field'><label for='"+id+"'>"+esc(label)+"</label>" +
+    "<input id='"+id+"' type='text' placeholder='"+esc(ph)+"' value='"+esc(val||"")+"'></div>";
+}
+function fmtInput(n){ return n ? n.toLocaleString("en-US") : ""; }
+function leftLine(){
+  return "<div class='calc-line'><span>Left in hand after</span><span class='money' id='m_left'>" + fmt(state.cash) + "</span></div>";
+}
+function setLeft(left){
+  var el = document.getElementById("m_left");
+  if(!el) return;
+  el.textContent = fmt(left);
+  el.className = "money" + (left < 0 ? " neg" : "");
+}
+function liveCalc(ids, fn){
+  ids.forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.addEventListener("input", fn);
+  });
+  fn();
+}
+function err(msg){
+  var e = document.getElementById("m_err");
+  if(e) e.textContent = msg;
+  return false;
+}
+/* pay if you can — otherwise offer a bank loan right inside the modal */
+function payOrBorrow(amount, perform){
+  if(amount <= state.cash){
+    snapshot(); perform(); commit(); return true;
+  }
+  var short = amount - state.cash;
+  var loanAmt = Math.ceil(short / 1000) * 1000;
+  var e = document.getElementById("m_err");
+  e.innerHTML = "You're short " + fmt(short) + ". Borrow " + fmt(loanAmt) +
+    " from the bank to cover it? That adds " + fmt(Math.round(loanAmt * 0.10)) + "/mo in loan payments." +
+    "<div class='sheet-actions' style='margin-top:8px'>" +
+    "<button class='btn btn-primary' id='m_borrowpay'>Borrow " + fmt(loanAmt) + " &amp; pay</button></div>";
+  document.getElementById("m_borrowpay").addEventListener("click", function(){
+    snapshot();
+    state.bankLoan += loanAmt;
+    state.cash += loanAmt;
+    logIt("Bank loan taken (payment now " + fmt(Math.round(state.bankLoan * 0.10)) + "/mo)", loanAmt);
+    perform();
+    commit();
+    closeModal();
+  });
+  return false;
+}
+/* freeze the page behind a modal (iOS Safari needs position:fixed, not just overflow:hidden) */
+var savedScroll = 0;
+function lockScroll(){
+  if(document.body.style.position === "fixed") return; // already locked (modal opened from a modal)
+  savedScroll = window.scrollY || document.documentElement.scrollTop || 0;
+  var s = document.body.style;
+  s.position = "fixed";
+  s.top = -savedScroll + "px";
+  s.left = "0"; s.right = "0";
+  s.width = "100%";
+  s.overflow = "hidden";
+}
+function unlockScroll(){
+  var s = document.body.style;
+  s.position = ""; s.top = ""; s.left = ""; s.right = ""; s.width = ""; s.overflow = "";
+  window.scrollTo(0, savedScroll);
+}
+
+function openModal(bodyHtml, confirmLabel, onConfirm){
+  lockScroll();
+  var html = "<div class='overlay' id='ovl'><div class='sheet' role='dialog' aria-modal='true'>";
+  html += bodyHtml;
+  html += "<p class='err' id='m_err'></p>";
+  if(confirmLabel){
+    html += "<div class='sheet-actions'><button class='btn' id='m_cancel'>Cancel</button>" +
+      "<button class='btn btn-primary' id='m_ok'>" + esc(confirmLabel) + "</button></div>";
+  } else {
+    html += "<div class='sheet-actions'><button class='btn' id='m_cancel'>Cancel</button></div>";
+  }
+  html += "</div></div>";
+  modalRoot.innerHTML = html;
+  document.getElementById("ovl").addEventListener("click", function(ev){
+    if(ev.target.id === "ovl") closeModal();
+  });
+  document.getElementById("m_cancel").addEventListener("click", closeModal);
+  if(confirmLabel && onConfirm){
+    document.getElementById("m_ok").addEventListener("click", function(){
+      if(onConfirm() !== false) closeModal();
+    });
+  }
+  var first = modalRoot.querySelector("input");
+  if(first) first.focus();
+}
+function closeModal(){ modalRoot.innerHTML = ""; unlockScroll(); }
+
+/* live thousand separators on every money input */
+document.addEventListener("input", function(ev){
+  var el = ev.target;
+  if(el.tagName === "INPUT" && el.getAttribute("inputmode") === "numeric"){
+    var digits = el.value.replace(/[^0-9]/g,"");
+    var formatted = digits ? parseInt(digits,10).toLocaleString("en-US") : "";
+    if(el.value !== formatted) el.value = formatted;
+  }
+});
+
+render();
+
+/* iOS Safari can load the page with scrolling stuck until the DOM is rebuilt.
+   Re-render once after load (and after restore from the back/forward cache) —
+   same effect as tapping an action, but without touching game state. */
+function safeRerender(){
+  if(document.activeElement && document.activeElement.tagName === "INPUT") return;
+  if(modalRoot.innerHTML) return;
+  render();
+}
+window.addEventListener("load", function(){ setTimeout(safeRerender, 50); });
+window.addEventListener("pageshow", function(ev){ if(ev.persisted) setTimeout(safeRerender, 50); });
+})();
+</script>
