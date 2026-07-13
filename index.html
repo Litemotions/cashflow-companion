@@ -168,6 +168,9 @@
   /* ---------- ledger log ---------- */
   .log .row{font-size:14px}
   .log .row .lbl{color:var(--muted)}
+  .log .row.undone .lbl{text-decoration:line-through;text-decoration-color:var(--muted);opacity:.6}
+  .log .row.undone .money{text-decoration:line-through;opacity:.6}
+  .log .row.marker .lbl{font-style:italic;color:var(--muted)}
   .empty{padding:10px 14px 14px;color:var(--muted);font-size:14px;border-top:1px solid var(--rule)}
 
   footer{display:flex;gap:8px;justify-content:center;margin:24px 0 10px}
@@ -366,6 +369,15 @@ function logIt(label, delta){
   if(state.log.length > 60) state.log.shift();
 }
 function commit(){ save(); render(); }
+function ledgerRows(emptyMsg){
+  if(state.log.length === 0) return "<div class='empty'>" + (emptyMsg || "Every payday, deal and doodad shows up here.") + "</div>";
+  return state.log.slice().reverse().slice(0,16).map(function(e){
+    var cls = "row" + (e.undone ? " undone" : "") + (e.marker ? " marker" : "");
+    return "<div class='" + cls + "'><span class='lbl'>" + esc(e.t) + "</span>" +
+      (e.d === null ? "" : "<span class='money " + (e.d >= 0 ? "pos" : "neg") + "'>" + fmtDelta(e.d) + "</span>") +
+      "</div>";
+  }).join("");
+}
 
 /* ---------- rendering ---------- */
 var app = document.getElementById("app");
@@ -597,17 +609,7 @@ function renderPlay(){
   html += "</div></section>";
 
   /* ledger */
-  html += "<section class='log'><h2>Ledger</h2>";
-  if(state.log.length === 0){
-    html += "<div class='empty'>Every payday, deal and doodad shows up here.</div>";
-  } else {
-    state.log.slice().reverse().slice(0,12).forEach(function(e){
-      html += "<div class='row'><span class='lbl'>" + esc(e.t) + "</span>" +
-        (e.d === null ? "" : "<span class='money " + (e.d >= 0 ? "pos" : "neg") + "'>" + fmtDelta(e.d) + "</span>") +
-        "</div>";
-    });
-  }
-  html += "</section>";
+  html += "<section class='log'><h2>Ledger</h2>" + ledgerRows() + "</section>";
 
   html += "<footer><button class='btn' id='edit-setup'>Edit numbers</button><button class='btn' id='new-game'>New game</button></footer>";
 
@@ -738,17 +740,7 @@ function renderFast(){
   html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
   html += "</div></section>";
 
-  html += "<section class='log'><h2>Ledger</h2>";
-  if(state.log.length === 0){
-    html += "<div class='empty'>Nothing yet.</div>";
-  } else {
-    state.log.slice().reverse().slice(0,12).forEach(function(e){
-      html += "<div class='row'><span class='lbl'>" + esc(e.t) + "</span>" +
-        (e.d === null ? "" : "<span class='money " + (e.d >= 0 ? "pos" : "neg") + "'>" + fmtDelta(e.d) + "</span>") +
-        "</div>";
-    });
-  }
-  html += "</section>";
+  html += "<section class='log'><h2>Ledger</h2>" + ledgerRows("Nothing yet.") + "</section>";
 
   html += "<footer><button class='btn' id='new-game'>New game</button></footer>";
 
@@ -959,12 +951,19 @@ function runAction(act){
       var lastLog = state.log.length ? state.log[state.log.length - 1] : null;
       openModal(
         "<h3>Undo</h3><p class='hint'>" +
-        (lastLog ? "This reverses your last action: <b>" + esc(lastLog.t) + "</b>." : "This reverses your last action.") +
+        (lastLog ? "This reverses your last action: <b>" + esc(lastLog.t) + "</b>. It stays in the ledger, crossed out." : "This reverses your last action.") +
         "</p>",
         "Undo it",
         function(){
           var prev = state.history.pop();
+          var extendedLog = state.log.slice();
+          if(extendedLog.length){
+            var last = extendedLog[extendedLog.length - 1];
+            extendedLog[extendedLog.length - 1] = Object.assign({}, last, {undone:true});
+          }
+          extendedLog.push({t:"Undone — " + (lastLog ? lastLog.t : "last action"), d:null, marker:true});
           prev.history = state.history;
+          prev.log = extendedLog;
           state = prev;
           commit();
           return true;
