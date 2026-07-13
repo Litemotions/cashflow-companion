@@ -577,7 +577,8 @@ function renderPlay(){
   });
   if(state.bankLoan > 0){
     anyLiab = true;
-    html += "<div class='row'><span class='lbl'>Bank Loan</span><span class='money'>" + fmt(state.bankLoan) + "</span>" +
+    html += "<div class='row'><span class='lbl'>Bank Loan<span class='note'>" + fmt(Math.round(state.bankLoan * 0.10)) +
+      "/mo already comes out of your PAYDAY automatically</span></span><span class='money'>" + fmt(state.bankLoan) + "</span>" +
       "<button class='btn-mini' data-act='loan'>Repay</button></div>";
   }
   if(!anyLiab) html += "<div class='empty'>Debt free.</div>";
@@ -835,8 +836,8 @@ function runAction(act){
 
     case "loan":
       openModal(
-        "<h3>Bank loan</h3><p class='hint'>Loans come in $1,000 steps — whatever you type is rounded up. Monthly payment is 10% of the loan." +
-        (state.bankLoan > 0 ? " Current loan: <b class='money'>" + fmt(state.bankLoan) + "</b>." : "") + "</p>" +
+        "<h3>Bank loan</h3><p class='hint'>Loans come in $1,000 steps — whatever you type is rounded up. The 10% monthly payment is deducted from your PAYDAY automatically every month — you never pay it by hand." +
+        (state.bankLoan > 0 ? " Current loan: <b class='money'>" + fmt(state.bankLoan) + "</b>, costing <b class='money'>" + fmt(Math.round(state.bankLoan * 0.10)) + "</b>/mo. Use Repay below only if you want to pay some or all of it off early with cash on hand — that lowers the monthly payment." : "") + "</p>" +
         moneyField("m_amt","Amount","","e.g. 2,000") +
         "<div class='calc-line'><span>Rounded to $1,000 steps</span><span class='money' id='m_calc'>$0</span></div>" +
         "<div class='sheet-actions' style='margin-top:8px'>" +
@@ -954,12 +955,20 @@ function runAction(act){
       break;
 
     case "undo":
-      if(state.history.length){
-        var prev = state.history.pop();
-        prev.history = state.history;
-        state = prev;
-        commit();
-      }
+      if(!state.history.length) break;
+      var lastLog = state.log.length ? state.log[state.log.length - 1] : null;
+      openModal(
+        "<h3>Undo</h3><p class='hint'>" +
+        (lastLog ? "This reverses your last action: <b>" + esc(lastLog.t) + "</b>." : "This reverses your last action.") +
+        "</p>",
+        "Undo it",
+        function(){
+          var prev = state.history.pop();
+          prev.history = state.history;
+          state = prev;
+          commit();
+          return true;
+        });
       break;
   }
 }
@@ -1165,13 +1174,28 @@ function payOrBorrow(amount, perform){
     snapshot(); perform(); commit(); return true;
   }
   var short = amount - state.cash;
-  var loanAmt = Math.ceil(short / 1000) * 1000;
+  var minLoan = Math.ceil(short / 1000) * 1000;
   var e = document.getElementById("m_err");
-  e.innerHTML = "You're short " + fmt(short) + ". Borrow " + fmt(loanAmt) +
-    " from the bank to cover it? That adds " + fmt(Math.round(loanAmt * 0.10)) + "/mo in loan payments." +
+  e.innerHTML = "You're short " + fmt(short) + ". Borrow from the bank to cover it — take more than you need if you want extra cash in hand." +
+    "<div class='field' style='margin-top:8px'><label for='m_loanamt'>Loan amount (min " + fmt(minLoan) + ")</label>" +
+    "<input id='m_loanamt' type='text' inputmode='numeric' pattern='[0-9,]*' value='" + fmtInput(minLoan) + "'></div>" +
+    "<div class='calc-line'><span id='m_loanline'></span></div>" +
     "<div class='sheet-actions' style='margin-top:8px'>" +
-    "<button class='btn btn-primary' id='m_borrowpay'>Borrow " + fmt(loanAmt) + " &amp; pay</button></div>";
+    "<button class='btn btn-primary' id='m_borrowpay'>Borrow &amp; pay</button></div>";
+  var amtEl = document.getElementById("m_loanamt");
+  var lineEl = document.getElementById("m_loanline");
+  function currentLoan(){
+    var v = parseInt((amtEl.value || "0").replace(/[^0-9]/g, ""), 10) || 0;
+    return Math.max(minLoan, Math.ceil(v / 1000) * 1000);
+  }
+  function refreshLoanLine(){
+    var loan = currentLoan();
+    lineEl.textContent = fmt(loan) + " · " + fmt(Math.round(loan * 0.10)) + "/mo · " + fmt(state.cash + loan - amount) + " left in hand";
+  }
+  amtEl.addEventListener("input", refreshLoanLine);
+  refreshLoanLine();
   document.getElementById("m_borrowpay").addEventListener("click", function(){
+    var loanAmt = currentLoan();
     snapshot();
     state.bankLoan += loanAmt;
     state.cash += loanAmt;
@@ -1200,6 +1224,32 @@ function unlockScroll(){
   window.scrollTo(0, savedScroll);
 }
 
+/* keep the modal above the iOS keyboard — the layout viewport doesn't shrink
+   while the body is position:fixed, so the sheet must follow the visual viewport itself */
+var vvHandler = null;
+function trackKeyboard(){
+  if(!window.visualViewport) return;
+  vvHandler = function(){
+    var ovl = document.getElementById("ovl");
+    if(!ovl) return;
+    var vv = window.visualViewport;
+    ovl.style.height = vv.height + "px";
+    ovl.style.top = vv.offsetTop + "px";
+    var sheet = ovl.querySelector(".sheet");
+    if(sheet) sheet.style.maxHeight = Math.max(200, vv.height - 24) + "px";
+  };
+  window.visualViewport.addEventListener("resize", vvHandler);
+  window.visualViewport.addEventListener("scroll", vvHandler);
+  vvHandler();
+}
+function untrackKeyboard(){
+  if(window.visualViewport && vvHandler){
+    window.visualViewport.removeEventListener("resize", vvHandler);
+    window.visualViewport.removeEventListener("scroll", vvHandler);
+  }
+  vvHandler = null;
+}
+
 function openModal(bodyHtml, confirmLabel, onConfirm){
   lockScroll();
   var html = "<div class='overlay' id='ovl'><div class='sheet' role='dialog' aria-modal='true'>";
@@ -1224,8 +1274,9 @@ function openModal(bodyHtml, confirmLabel, onConfirm){
   }
   var first = modalRoot.querySelector("input");
   if(first) first.focus();
+  trackKeyboard();
 }
-function closeModal(){ modalRoot.innerHTML = ""; unlockScroll(); }
+function closeModal(){ untrackKeyboard(); modalRoot.innerHTML = ""; unlockScroll(); }
 
 /* live thousand separators on every money input */
 document.addEventListener("input", function(ev){
