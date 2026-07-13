@@ -1,4 +1,8 @@
+<!doctype html>
+<html lang="en">
+<head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>CASHFLOW Sheet</title>
 <style>
   :root{
@@ -226,6 +230,8 @@
     @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
   }
 </style>
+</head>
+<body>
 
 <div id="app"></div>
 <div id="modal-root"></div>
@@ -1245,3 +1251,5 @@ window.addEventListener("load", function(){ setTimeout(safeRerender, 50); });
 window.addEventListener("pageshow", function(ev){ if(ev.persisted) setTimeout(safeRerender, 50); });
 })();
 </script>
+</body>
+</html>
