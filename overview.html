@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CASHFLOW — Live Overview</title>
+<style>
+  :root{
+    --bg0:#160c26; --bg1:#1d1140; --bg2:#0d1a2b;
+    --panel:rgba(255,255,255,.05);
+    --panel-brd:rgba(255,255,255,.10);
+    --ink:#F4F1FB; --muted:#A99FC8;
+    --brand:#8A5DBB; --brand-hi:#B98CE6;
+    --gold:#F3D06B; --gold-edge:#C9A23C;
+    --pos:#5BD69B; --neg:#F0837B;
+    --track-rat:#8A5DBB; --track-fast:#F3D06B;
+    --display:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%}
+  body{
+    font-family:var(--body);color:var(--ink);
+    background:
+      radial-gradient(1200px 800px at 15% -10%, rgba(138,93,187,.35), transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, rgba(60,120,200,.28), transparent 55%),
+      linear-gradient(160deg, var(--bg0), var(--bg1) 45%, var(--bg2));
+    background-attachment:fixed;
+    min-height:100%;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 26px 60px}
+
+  header.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+  .title{display:flex;align-items:center;gap:14px}
+  .title .mark{
+    width:46px;height:46px;border-radius:12px;flex:none;
+    background:linear-gradient(135deg,var(--brand-hi),var(--brand));
+    display:grid;place-items:center;font-weight:800;font-size:22px;color:#fff;
+    box-shadow:0 6px 20px rgba(138,93,187,.5);
+  }
+  .title h1{font-family:var(--display);font-size:30px;margin:0;line-height:1.05}
+  .title p{margin:2px 0 0;color:var(--muted);font-size:14px;letter-spacing:.02em}
+  .gamecode{text-align:right}
+  .gamecode .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.18em;color:var(--muted)}
+  .gamecode .val{font-family:var(--display);font-size:32px;font-weight:700;color:var(--gold);letter-spacing:.05em}
+  .gamecode .count{font-size:13px;color:var(--muted);margin-top:2px}
+
+  .board{position:relative;transition:height .5s ease}
+  .card{
+    position:absolute;left:0;right:0;top:0;
+    height:118px;
+    background:var(--panel);
+    border:1px solid var(--panel-brd);
+    border-radius:16px;
+    padding:16px 20px;
+    display:grid;grid-template-columns:54px 1fr auto;gap:0 18px;align-items:center;
+    backdrop-filter:blur(6px);
+    box-shadow:0 8px 30px rgba(0,0,0,.28);
+    transition:transform .6s cubic-bezier(.22,.9,.24,1), box-shadow .4s, border-color .4s, background .4s;
+    overflow:hidden;
+  }
+  .card.leader{border-color:var(--gold-edge);background:linear-gradient(100deg, rgba(243,208,107,.14), var(--panel) 60%)}
+  .card.won{border-color:var(--gold-edge)}
+  .card.bump{animation:bump .5s ease}
+  @keyframes bump{0%{transform:translateY(var(--y)) scale(1)}30%{transform:translateY(var(--y)) scale(1.02)}100%{transform:translateY(var(--y)) scale(1)}}
+
+  .rank{
+    font-family:var(--display);font-size:30px;font-weight:700;color:var(--muted);
+    text-align:center;
+  }
+  .card.leader .rank{color:var(--gold)}
+  .rank .medal{font-size:30px}
+
+  .mid{min-width:0}
+  .who{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .who .name{font-size:23px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .who .prof{color:var(--muted);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{
+    font-size:12px;font-weight:800;letter-spacing:.04em;
+    padding:3px 10px;border-radius:999px;flex:none;
+    background:rgba(138,93,187,.22);color:var(--brand-hi);border:1px solid rgba(138,93,187,.4);
+  }
+  .pill.ready{background:rgba(243,208,107,.16);color:var(--gold);border-color:var(--gold-edge)}
+  .pill.fast{background:rgba(243,208,107,.16);color:var(--gold);border-color:var(--gold-edge)}
+  .pill.won{background:linear-gradient(90deg,var(--gold),#fff4cf);color:#4a3a00;border-color:var(--gold)}
+
+  .barrow{display:flex;align-items:center;gap:12px}
+  .bar{flex:1;height:12px;border-radius:8px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+  .bar>span{display:block;height:100%;border-radius:8px;transition:width .8s cubic-bezier(.22,.9,.24,1);
+    background:linear-gradient(90deg,var(--brand),var(--brand-hi))}
+  .card.fast .bar>span,.card.won .bar>span{background:linear-gradient(90deg,var(--gold-edge),var(--gold))}
+  .barlabel{font-size:13px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .act{font-size:13px;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act b{color:var(--ink);font-weight:600}
+
+  .right{text-align:right}
+  .right .cashlbl{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+  .right .cash{font-family:var(--display);font-size:30px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1}
+  .cash.flash{animation:cashflash .8s ease}
+  @keyframes cashflash{0%{color:var(--ink)}25%{color:var(--pos);transform:scale(1.06)}100%{color:var(--ink)}}
+
+  .empty-state,.join-state{
+    text-align:center;padding:70px 20px;color:var(--muted);
+  }
+  .empty-state .big,.join-state .big{font-family:var(--display);font-size:26px;color:var(--ink);margin-bottom:10px}
+  .join-state form{margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .join-state input{
+    background:rgba(255,255,255,.08);border:1px solid var(--panel-brd);border-radius:10px;
+    color:var(--ink);font-size:20px;padding:12px 16px;font-family:var(--display);letter-spacing:.06em;
+    text-transform:uppercase;width:220px;text-align:center;
+  }
+  .join-state button{
+    background:linear-gradient(135deg,var(--brand-hi),var(--brand));border:none;border-radius:10px;
+    color:#fff;font-size:17px;font-weight:700;padding:12px 22px;cursor:pointer;
+  }
+  .dots{display:inline-block;width:1.4em;text-align:left}
+
+  footer{margin-top:34px;text-align:center;color:var(--muted);font-size:12px;letter-spacing:.03em}
+  .live{display:inline-flex;align-items:center;gap:6px}
+  .live .dot{width:8px;height:8px;border-radius:50%;background:var(--pos);box-shadow:0 0 0 0 rgba(91,214,155,.6);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(91,214,155,.55)}70%{box-shadow:0 0 0 10px rgba(91,214,155,0)}100%{box-shadow:0 0 0 0 rgba(91,214,155,0)}}
+
+  @media (max-width:560px){
+    .title h1{font-size:24px}
+    .gamecode .val{font-size:26px}
+    .card{grid-template-columns:40px 1fr;height:auto;position:relative;transform:none!important}
+    .card .right{grid-column:2;text-align:left;margin-top:8px}
+    .board{height:auto!important}
+    .card{margin-bottom:12px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="title">
+      <div class="mark">CF</div>
+      <div>
+        <h1>CASHFLOW — Live Standings</h1>
+        <p>Who's closest to escaping the Rat Race?</p>
+      </div>
+    </div>
+    <div class="gamecode" id="gamecode" style="display:none">
+      <div class="lbl">Game code</div>
+      <div class="val" id="code-val">—</div>
+      <div class="count" id="count-val"></div>
+    </div>
+  </header>
+
+  <div id="content"></div>
+
+  <footer>
+    <span class="live" id="live" style="display:none"><span class="dot"></span> Live · updates automatically</span>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+"use strict";
+var SUPA_URL = "https://mdcpwnsufswzenmpgesl.supabase.co";
+var SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kY3B3bnN1ZnN3emVubXBnZXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTI3MTMsImV4cCI6MjA5OTYyODcxM30.yxXSUVuIW6MLQrjEr9yY-0NzQ42BzMpzlSLwz-6s27U";
+var supa = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+var ROW = 130; // card height 118 + 12 gap
+var params = new URLSearchParams(location.search);
+var code = (params.get("game") || "").trim().toUpperCase();
+var players = [];
+var prevCash = {};      // id -> last cash, to flash on change
+var channel = null;
+var content = document.getElementById("content");
+
+function fmt(n){
+  var neg = n < 0;
+  var s = "$" + Math.abs(Math.round(n)).toLocaleString("en-US");
+  return neg ? "−" + s : s;
+}
+function esc(s){
+  return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+function sortRoster(list){
+  return list.slice().sort(function(a, b){
+    if(!!a.won !== !!b.won) return a.won ? -1 : 1;
+    if(!!a.out_of_rat_race !== !!b.out_of_rat_race) return a.out_of_rat_race ? -1 : 1;
+    if((b.progress_pct||0) !== (a.progress_pct||0)) return (b.progress_pct||0) - (a.progress_pct||0);
+    return (b.cash||0) - (a.cash||0);
+  });
+}
+
+function joinScreen(){
+  content.innerHTML =
+    "<div class='join-state'><div class='big'>Enter a game code</div>" +
+    "<p>Ask the host for their code (looks like <b>PLAY-1234</b>) and type it below to watch the game live.</p>" +
+    "<form id='jf'><input id='jc' placeholder='PLAY-1234' autocomplete='off'>" +
+    "<button type='submit'>Watch game</button></form></div>";
+  document.getElementById("jf").addEventListener("submit", function(e){
+    e.preventDefault();
+    var v = document.getElementById("jc").value.trim().toUpperCase();
+    if(v){ location.search = "?game=" + encodeURIComponent(v); }
+  });
+}
+
+function statusOf(p){
+  if(p.won) return {cls:"won", txt:"🏆 WINNER"};
+  if(p.track === "fast") return {cls:"fast", txt:"🚀 Fast Track"};
+  if(p.out_of_rat_race) return {cls:"ready", txt:"🚀 Ready to escape"};
+  return {cls:"", txt:"Rat Race"};
+}
+function progressOf(p){
+  var pct = Math.max(0, Math.min(100, p.progress_pct || 0));
+  var label;
+  if(p.track === "fast" || p.won){
+    label = (p.ft_gain >= 0 ? "+" : "−") + "$" + Math.abs(Math.round(p.ft_gain||0)).toLocaleString("en-US") + " / $50,000";
+  } else {
+    label = pct + "% — passive " + fmt(p.passive_income||0) + " of " + fmt(p.total_expenses||0);
+  }
+  return {pct:pct, label:label};
+}
+
+function cardHtml(p, rank){
+  var st = statusOf(p), pr = progressOf(p);
+  var medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+  return "<div class='rank'><span class='medal'>" + medal + "</span></div>" +
+    "<div class='mid'>" +
+      "<div class='who'><span class='name'>" + esc(p.name) + "</span>" +
+        (p.profession ? "<span class='prof'>" + esc(p.profession) + "</span>" : "") +
+        "<span class='pill " + st.cls + "'>" + st.txt + "</span></div>" +
+      "<div class='barrow'><div class='bar'><span style='width:" + pr.pct + "%'></span></div>" +
+        "<span class='barlabel'>" + esc(pr.label) + "</span></div>" +
+      "<div class='act'>" + (p.last_action ? "Last: <b>" + esc(p.last_action) + "</b>" : "&nbsp;") + "</div>" +
+    "</div>" +
+    "<div class='right'><div class='cashlbl'>Cash</div><div class='cash' data-cash>" + fmt(p.cash||0) + "</div></div>";
+}
+
+function render(){
+  document.getElementById("gamecode").style.display = "";
+  document.getElementById("code-val").textContent = code;
+  document.getElementById("live").style.display = players.length ? "" : "none";
+
+  if(!players.length){
+    document.getElementById("count-val").textContent = "";
+    content.innerHTML = "<div class='empty-state'><div class='big'>Waiting for players<span class='dots' id='dots'></span></div>" +
+      "<p>Open the game on your phones and join with code <b>" + esc(code) + "</b>.</p></div>";
+    animateDots();
+    return;
+  }
+  document.getElementById("count-val").textContent = players.length + (players.length === 1 ? " player" : " players");
+
+  var sorted = sortRoster(players);
+  var board = document.getElementById("board");
+  if(!board){
+    content.innerHTML = "<div class='board' id='board'></div>";
+    board = document.getElementById("board");
+  }
+  board.style.height = (sorted.length * ROW) + "px";
+
+  var leaderId = sorted[0] ? sorted[0].id : null;
+  sorted.forEach(function(p, i){
+    var card = board.querySelector("[data-id='" + p.id + "']");
+    var isNew = false;
+    if(!card){
+      card = document.createElement("div");
+      card.className = "card";
+      card.setAttribute("data-id", p.id);
+      board.appendChild(card);
+      isNew = true;
+    }
+    card.innerHTML = cardHtml(p, i + 1);
+    card.className = "card" +
+      (p.id === leaderId ? " leader" : "") +
+      (p.track === "fast" ? " fast" : "") +
+      (p.won ? " won" : "");
+    card.style.setProperty("--y", (i * ROW) + "px");
+    card.style.transform = "translateY(" + (i * ROW) + "px)";
+
+    // flash cash when it changes
+    var cashEl = card.querySelector("[data-cash]");
+    if(!isNew && prevCash[p.id] !== undefined && prevCash[p.id] !== p.cash && cashEl){
+      cashEl.classList.add("flash");
+      card.classList.add("bump");
+      setTimeout(function(){ cashEl.classList.remove("flash"); card.classList.remove("bump"); }, 800);
+    }
+    prevCash[p.id] = p.cash;
+  });
+
+  // remove cards for players who left
+  Array.prototype.slice.call(board.querySelectorAll(".card")).forEach(function(card){
+    var id = card.getAttribute("data-id");
+    if(!sorted.some(function(p){ return String(p.id) === String(id); })){ card.remove(); }
+  });
+}
+
+var dotTimer = null;
+function animateDots(){
+  var n = 0;
+  if(dotTimer) clearInterval(dotTimer);
+  dotTimer = setInterval(function(){
+    var el = document.getElementById("dots");
+    if(!el){ clearInterval(dotTimer); return; }
+    n = (n + 1) % 4;
+    el.textContent = new Array(n + 1).join(".");
+  }, 450);
+}
+
+function fetchPlayers(){
+  if(!supa) return;
+  supa.from("players").select("*").eq("code", code).then(function(res){
+    if(res.data){ players = res.data; render(); }
+  });
+}
+function subscribe(){
+  if(!supa) return;
+  channel = supa.channel("ov-" + code)
+    .on("postgres_changes", {event:"*", schema:"public", table:"players", filter:"code=eq." + code}, fetchPlayers)
+    .subscribe();
+  fetchPlayers();
+  // safety net poll in case a realtime event is missed
+  setInterval(fetchPlayers, 5000);
+}
+
+if(!supa){
+  content.innerHTML = "<div class='empty-state'><div class='big'>Couldn't load</div><p>The connection library didn't load. Check your internet and refresh.</p></div>";
+} else if(!code){
+  joinScreen();
+} else {
+  render();
+  subscribe();
+}
+})();
+</script>
+</body>
+</html>

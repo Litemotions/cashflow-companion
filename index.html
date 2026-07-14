@@ -237,6 +237,26 @@
   .sign-toggle{
     flex:0 0 52px;font-size:22px;font-weight:700;line-height:1;
   }
+
+  /* ---------- multiplayer lobby strip ---------- */
+  .lobby{padding:8px 14px 12px;border-top:1px solid var(--rule);display:flex;flex-direction:column;gap:10px}
+  .lp{
+    background:var(--panel-2);border:1px solid var(--rule);border-radius:8px;
+    padding:9px 11px;
+    animation:lpIn .25s ease;
+  }
+  @keyframes lpIn{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .lp.you{border-color:var(--brand)}
+  .lp-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .lp-name{font-weight:700;font-size:14px}
+  .lp-top .money{font-size:14px}
+  .lp .bar{height:7px}
+  .lp-act{color:var(--muted);font-size:12px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lp .bar>span{transition:width .5s ease}
+  .code-pill{
+    font-family:var(--display);font-size:22px;letter-spacing:.06em;
+    color:var(--brand);font-weight:700;
+  }
 </style>
 </head>
 <body>
@@ -244,6 +264,7 @@
 <div id="app"></div>
 <div id="modal-root"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
 "use strict";
@@ -304,6 +325,7 @@ function blankState(){
     diceCount:2,     // dice rolled per turn on the Fast Track
     notifiedEscape:false,
     notifiedWin:false,
+    mp:null,         // {code,gameId,playerId,host} when in a shared game
     log:[],          // {t:label, d:delta or null}
     history:[]
   };
@@ -376,7 +398,7 @@ function logIt(label, delta){
   state.log.push({t:label, d:(delta === undefined ? null : delta)});
   if(state.log.length > 60) state.log.shift();
 }
-function commit(){ save(); render(); }
+function commit(){ save(); render(); mpPush(); }
 function ledgerRows(emptyMsg){
   if(state.log.length === 0) return "<div class='empty'>" + (emptyMsg || "Every payday, deal and doodad shows up here.") + "</div>";
   return state.log.slice().reverse().slice(0,16).map(function(e){
@@ -624,6 +646,9 @@ function renderPlay(){
   html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
   html += "</div></section>";
 
+  /* multiplayer */
+  html += mpSectionHtml();
+
   /* ledger */
   html += "<section class='log'><h2>Ledger</h2>" + ledgerRows() + "</section>";
 
@@ -679,6 +704,7 @@ function wirePlay(){
   document.getElementById("new-game").addEventListener("click", confirmNewGame);
   var ef = document.getElementById("enter-fast");
   if(ef) ef.addEventListener("click", enterFastModal);
+  wireMp();
 }
 
 function confirmNewGame(){
@@ -771,6 +797,8 @@ function renderFast(){
   html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
   html += "</div></section>";
 
+  html += mpSectionHtml();
+
   html += "<section class='log'><h2>Ledger</h2>" + ledgerRows("Nothing yet.") + "</section>";
 
   html += "<footer><button class='btn' id='new-game'>New game</button></footer>";
@@ -798,6 +826,7 @@ function renderFast(){
     b.addEventListener("click", function(){ runAction(b.getAttribute("data-act")); });
   });
   document.getElementById("new-game").addEventListener("click", confirmNewGame);
+  wireMp();
 }
 
 /* ---------- actions ---------- */
@@ -1481,6 +1510,204 @@ function checkMilestones(){
   }
 }
 
+/* ================= Multiplayer (Supabase) ================= */
+var SUPA_URL = "https://mdcpwnsufswzenmpgesl.supabase.co";
+/* Public anon key — safe to embed in a static page. Row-level security limits
+   what it can touch, and it only ever reads/writes this party game's tables. */
+var SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kY3B3bnN1ZnN3emVubXBnZXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTI3MTMsImV4cCI6MjA5OTYyODcxM30.yxXSUVuIW6MLQrjEr9yY-0NzQ42BzMpzlSLwz-6s27U";
+var supa = (window.supabase && window.supabase.createClient)
+  ? window.supabase.createClient(SUPA_URL, SUPA_KEY, {realtime:{params:{eventsPerSecond:5}}})
+  : null;
+
+var mpPlayers = [];
+var mpChannel = null;
+
+function deviceId(){
+  var id = localStorage.getItem("cashflow-device");
+  if(!id){ id = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("cashflow-device", id); }
+  return id;
+}
+function genCode(){ return "PLAY-" + Math.floor(1000 + Math.random() * 9000); }
+function mpConnected(){ return !!(state.mp && state.mp.code && state.mp.playerId); }
+
+function lastActionLabel(){
+  for(var i = state.log.length - 1; i >= 0; i--){ if(!state.log[i].marker) return state.log[i].t; }
+  return "";
+}
+function mpSnapshotFields(){
+  var name = state.player || "Player", prof = state.profession || "";
+  if(state.track === "fast"){
+    var ftTotal = ftTotalIncome();
+    var gain = ftTotal - (state.ftStart || 0);
+    var won = !!state.ftDream || gain >= 50000;
+    return {name:name, profession:prof, cash:Math.round(state.cash),
+      passive_income:Math.round(ftTotal), total_expenses:0,
+      progress_pct:Math.max(0, Math.min(100, Math.round(gain / 50000 * 100))),
+      track:"fast", out_of_rat_race:true, won:won, ft_gain:Math.round(gain),
+      last_action:lastActionLabel()};
+  }
+  var d = derived();
+  var pct = d.totalExpenses > 0 ? Math.min(100, Math.round(d.passive / d.totalExpenses * 100)) : 0;
+  return {name:name, profession:prof, cash:Math.round(state.cash),
+    passive_income:Math.round(d.passive), total_expenses:Math.round(d.totalExpenses),
+    progress_pct:pct, track:"rat", out_of_rat_race:!!d.out, won:false, ft_gain:0,
+    last_action:lastActionLabel()};
+}
+
+function mpPush(){
+  if(!supa || !mpConnected()) return;
+  var f = mpSnapshotFields();
+  f.updated_at = new Date().toISOString();
+  supa.from("players").update(f).eq("id", state.mp.playerId).then(function(){}, function(){});
+}
+function mpHost(name){
+  if(!supa) return Promise.reject("offline");
+  var code = genCode();
+  return supa.from("games").insert({code:code, host_name:name, status:"lobby"}).select().single()
+    .then(function(res){
+      if(res.error) return mpHost(name); // rare code collision — try again
+      return mpJoin(code, name, true);
+    });
+}
+function mpJoin(code, name, isHost){
+  if(!supa) return Promise.reject("offline");
+  code = String(code).trim().toUpperCase();
+  return supa.from("games").select("id,code").eq("code", code).single().then(function(res){
+    if(res.error || !res.data) throw "No game found with that code.";
+    var gameId = res.data.id;
+    var base = mpSnapshotFields();
+    base.game_id = gameId; base.code = code; base.client_id = deviceId(); base.name = name;
+    return supa.from("players").insert(base).select().single().then(function(pr){
+      if(pr.error) throw "Could not join the game.";
+      state.mp = {code:code, gameId:gameId, playerId:pr.data.id, host:!!isHost};
+      save();
+      mpSubscribe();
+      return code;
+    });
+  });
+}
+function mpLeave(){
+  if(supa && mpConnected()){
+    supa.from("players").delete().eq("id", state.mp.playerId).then(function(){}, function(){});
+  }
+  if(mpChannel && supa){ supa.removeChannel(mpChannel); }
+  mpChannel = null; mpPlayers = [];
+  state.mp = null; save(); render();
+}
+function mpFetchRoster(){
+  if(!supa || !mpConnected()) return;
+  supa.from("players").select("*").eq("code", state.mp.code)
+    .then(function(res){ if(res.data){ mpPlayers = sortRoster(res.data); updateLobbyStrip(); } });
+}
+function sortRoster(list){
+  return list.slice().sort(function(a, b){
+    if(a.won !== b.won) return a.won ? -1 : 1;
+    if(a.out_of_rat_race !== b.out_of_rat_race) return a.out_of_rat_race ? -1 : 1;
+    return (b.progress_pct || 0) - (a.progress_pct || 0);
+  });
+}
+function mpSubscribe(){
+  if(!supa || !mpConnected()) return;
+  if(mpChannel){ supa.removeChannel(mpChannel); mpChannel = null; }
+  mpChannel = supa.channel("game-" + state.mp.code)
+    .on("postgres_changes", {event:"*", schema:"public", table:"players", filter:"code=eq." + state.mp.code},
+      function(){ mpFetchRoster(); })
+    .subscribe();
+  mpFetchRoster();
+}
+function overviewLink(){
+  var base = location.href.split(/[?#]/)[0].replace(/[^\/]*$/, "");
+  return base + "overview.html?game=" + encodeURIComponent(state.mp ? state.mp.code : "");
+}
+function copyText(t){
+  if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).catch(function(){}); }
+}
+
+function mpSectionHtml(){
+  if(!supa) return ""; // library didn't load (offline) — hide multiplayer entirely
+  var h = "<section><h2>Multiplayer</h2>";
+  if(mpConnected()){
+    h += "<div class='row'><span class='lbl'>Game code<span class='note'>Read this out to the other players</span></span>" +
+      "<span class='code-pill'>" + esc(state.mp.code) + "</span></div>";
+    h += "<div id='lobby-strip' class='lobby'><div class='empty'>Loading players…</div></div>";
+    h += "<div class='actions'>" +
+      "<button class='btn btn-primary' id='mp-overview'>Open TV overview</button>" +
+      "<button class='btn' id='mp-copy'>Copy code</button>" +
+      "<button class='btn' id='mp-leave'>Leave</button></div>";
+  } else {
+    h += "<div class='empty'>Play together: host a game to get a code, or join someone else's. Everyone's progress shows up on a shared overview you can put on a TV.</div>";
+    h += "<div class='actions'>" +
+      "<button class='btn btn-primary' id='mp-host'>Host game</button>" +
+      "<button class='btn' id='mp-join'>Join game</button></div>";
+  }
+  return h + "</section>";
+}
+function updateLobbyStrip(){
+  var el = document.getElementById("lobby-strip");
+  if(!el) return;
+  if(!mpPlayers.length){ el.innerHTML = "<div class='empty'>Waiting for players to join…</div>"; return; }
+  el.innerHTML = mpPlayers.map(function(p){
+    var pct = Math.max(0, Math.min(100, p.progress_pct || 0));
+    var badge = p.won ? " 🏆" : (p.out_of_rat_race ? " 🚀" : "");
+    var you = (state.mp && p.id === state.mp.playerId);
+    return "<div class='lp" + (you ? " you" : "") + "'>" +
+      "<div class='lp-top'><span class='lp-name'>" + esc(p.name) + (you ? " (you)" : "") + badge + "</span>" +
+      "<span class='money'>" + fmt(p.cash || 0) + "</span></div>" +
+      "<div class='bar'><span style='width:" + pct + "%'></span></div>" +
+      "<div class='lp-act'>" + esc(p.last_action || "—") + "</div></div>";
+  }).join("");
+}
+function wireMp(){
+  var host = document.getElementById("mp-host");
+  if(host) host.addEventListener("click", mpHostModal);
+  var join = document.getElementById("mp-join");
+  if(join) join.addEventListener("click", mpJoinModal);
+  var ov = document.getElementById("mp-overview");
+  if(ov) ov.addEventListener("click", function(){ window.open(overviewLink(), "_blank"); });
+  var cp = document.getElementById("mp-copy");
+  if(cp) cp.addEventListener("click", function(){
+    copyText(state.mp.code); cp.textContent = "Copied!";
+    setTimeout(function(){ cp.textContent = "Copy code"; }, 1400);
+  });
+  var lv = document.getElementById("mp-leave");
+  if(lv) lv.addEventListener("click", function(){
+    openModal("<h3>Leave the game?</h3><p class='hint'>You'll drop off the shared overview. Your own sheet stays exactly as it is.</p>",
+      "Leave", function(){ mpLeave(); return true; });
+  });
+  if(mpConnected()){ updateLobbyStrip(); mpFetchRoster(); }
+}
+function mpHostModal(){
+  openModal(
+    "<h3>Host a game</h3><p class='hint'>You'll get a code to share. Anyone who enters it appears on the shared overview.</p>" +
+    labelField("mp_name", "Your name", "e.g. Jibril", state.player || ""),
+    "Create game",
+    function(){
+      var name = txt("mp_name"); if(!name) return err("Enter your name.");
+      state.player = name; save();
+      var ok = document.getElementById("m_ok"); ok.textContent = "Creating…"; ok.disabled = true;
+      mpHost(name).then(function(){ closeModal(); render(); },
+        function(e){ ok.textContent = "Create game"; ok.disabled = false; err(typeof e === "string" ? e : "Couldn't reach the server. Check your connection."); });
+      return false; // stay open until the request resolves
+    });
+}
+function mpJoinModal(){
+  openModal(
+    "<h3>Join a game</h3><p class='hint'>Type the code the host gave you, and your name.</p>" +
+    labelField("mp_code", "Game code", "PLAY-1234", state.mp ? state.mp.code : "") +
+    labelField("mp_name", "Your name", "e.g. Luis", state.player || ""),
+    "Join",
+    function(){
+      var code = txt("mp_code"), name = txt("mp_name");
+      if(!code) return err("Enter the game code.");
+      if(!name) return err("Enter your name.");
+      state.player = name; save();
+      var ok = document.getElementById("m_ok"); ok.textContent = "Joining…"; ok.disabled = true;
+      mpJoin(code, name, false).then(function(){ closeModal(); render(); },
+        function(e){ ok.textContent = "Join"; ok.disabled = false; err(typeof e === "string" ? e : "Couldn't join. Check the code and your connection."); });
+      return false;
+    });
+}
+
 /* live thousand separators on every money input */
 document.addEventListener("input", function(ev){
   var el = ev.target;
@@ -1492,6 +1719,7 @@ document.addEventListener("input", function(ev){
 });
 
 render();
+if(mpConnected()) mpSubscribe();
 
 /* iOS Safari can load the page with scrolling stuck until the DOM is rebuilt.
    Re-render once after load (and after restore from the back/forward cache) —
