@@ -231,6 +231,11 @@
   @media (prefers-reduced-motion: no-preference){
     .sheet{animation:up .18s ease-out}
     @keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+    .cash-amount.flash{animation:cashPulse .5s ease}
+    @keyframes cashPulse{0%{transform:scale(1)}35%{transform:scale(1.14);color:var(--pos)}100%{transform:scale(1)}}
+  }
+  .sign-toggle{
+    flex:0 0 52px;font-size:22px;font-weight:700;line-height:1;
   }
 </style>
 </head>
@@ -296,6 +301,9 @@ function blankState(){
     ftStart:0,       // beginning Fast Track income (passive × 100)
     ftDeals:[],      // {id,name,cost,income}
     ftDream:null,
+    diceCount:2,     // dice rolled per turn on the Fast Track
+    notifiedEscape:false,
+    notifiedWin:false,
     log:[],          // {t:label, d:delta or null}
     history:[]
   };
@@ -384,8 +392,10 @@ var app = document.getElementById("app");
 var modalRoot = document.getElementById("modal-root");
 
 function render(){
-  if(!state.started) renderSetup();
-  else renderPlay();
+  if(!state.started){ renderSetup(); return; }
+  renderPlay();
+  requestWakeLock();
+  checkMilestones();
 }
 
 function renderSetup(){
@@ -565,7 +575,7 @@ function renderPlay(){
       }
       html += "<div class='row'><span class='lbl'>" + esc(a.name) +
         "<span class='note'>" + detail + "</span></span>" +
-        (a.type === "stock" ? "" : "<button class='btn-mini' data-upgrade='" + a.id + "'>Upgrade</button>") +
+        (a.type === "stock" ? "<button class='btn-mini' data-split='" + a.id + "'>Split</button>" : "<button class='btn-mini' data-upgrade='" + a.id + "'>Upgrade</button>") +
         "<button class='btn-mini' data-sell='" + a.id + "'>Sell</button></div>";
     });
   }
@@ -578,13 +588,19 @@ function renderPlay(){
     var amt = state.liabilities[f[0]] || 0;
     if(amt <= 0) return;
     anyLiab = true;
-    html += "<div class='row'><span class='lbl'>" + f[1] + "</span><span class='money'>" + fmt(amt) + "</span>" +
+    var expKey = f[2] || (f[0] === "homeMortgage" ? "mortgagePay" : null);
+    var expAmt = expKey ? (state.expenses[expKey] || 0) : 0;
+    html += "<div class='row'><span class='lbl'>" + f[1] +
+      (expAmt ? "<span class='note'>" + fmt(expAmt) + "/mo payment</span>" : "") +
+      "</span><span class='money'>" + fmt(amt) + "</span>" +
       "<button class='btn-mini' data-payoff='" + f[0] + "'>Pay off</button></div>";
   });
   state.assets.forEach(function(a){
     if(a.type !== "stock" && a.mortgage > 0){
       anyLiab = true;
-      html += "<div class='row'><span class='lbl'>" + esc(a.name) + " mortgage</span><span class='money'>" + fmt(a.mortgage) + "</span></div>";
+      html += "<div class='row'><span class='lbl'>" + esc(a.name) + " mortgage" +
+        (a.cashflow ? "<span class='note'>" + fmt(a.cashflow) + "/mo cash flow from this asset</span>" : "") +
+        "</span><span class='money'>" + fmt(a.mortgage) + "</span></div>";
     }
   });
   if(state.bankLoan > 0){
@@ -624,10 +640,20 @@ function renderPlay(){
 function wirePlay(){
   document.getElementById("act-payday").addEventListener("click", function(){
     var d = derived();
-    snapshot();
-    state.cash += d.payday;
-    logIt("PAYDAY", d.payday);
-    commit();
+    openModal(
+      "<h3>Collect PAYDAY</h3><p class='hint'>Add this month's cash flow to your cash on hand.</p>" +
+      "<div class='calc-line'><span>Cash flow</span><span class='money " + (d.payday >= 0 ? "pos" : "neg") + "'>" + fmt(d.payday) + "</span></div>" +
+      "<div class='calc-line'><span>New cash on hand</span><span class='money'>" + fmt(state.cash + d.payday) + "</span></div>",
+      "Collect PAYDAY",
+      function(){
+        snapshot();
+        state.cash += d.payday;
+        logIt("PAYDAY", d.payday);
+        commit();
+        playChime();
+        celebrateCash();
+        return true;
+      });
   });
   app.querySelectorAll("[data-act]").forEach(function(b){
     b.addEventListener("click", function(){ runAction(b.getAttribute("data-act")); });
@@ -637,6 +663,9 @@ function wirePlay(){
   });
   app.querySelectorAll("[data-upgrade]").forEach(function(b){
     b.addEventListener("click", function(){ upgradeModal(b.getAttribute("data-upgrade")); });
+  });
+  app.querySelectorAll("[data-split]").forEach(function(b){
+    b.addEventListener("click", function(){ splitModal(b.getAttribute("data-split")); });
   });
   app.querySelectorAll("[data-payoff]").forEach(function(b){
     b.addEventListener("click", function(){ payoffModal(b.getAttribute("data-payoff")); });
@@ -708,7 +737,8 @@ function renderFast(){
 
   var who = [state.player, state.profession].filter(Boolean).join(" · ");
   html += "<h1>Fast Track</h1>";
-  html += "<p class='sub'>" + (who ? esc(who) : "Out of the Rat Race") + "</p>";
+  var dice = state.diceCount || 2;
+  html += "<p class='sub'>" + (who ? esc(who) : "Out of the Rat Race") + " · Rolling " + dice + (dice === 1 ? " die" : " dice") + "</p>";
 
   if(won){
     html += "<div class='escaped'>" +
@@ -736,6 +766,7 @@ function renderFast(){
   html += "<button class='btn' data-act='ftdeal'>Buy deal</button>";
   html += "<button class='btn' data-act='ftdream'>Buy your Dream</button>";
   html += "<button class='btn' data-act='ftcharity'>Charity</button>";
+  html += "<button class='btn' data-act='ftlife'>Divorce / Audit / Lawsuit</button>";
   html += "<button class='btn' data-act='adjust'>Adjust cash</button>";
   html += "<button class='btn' data-act='undo'" + (state.history.length ? "" : " disabled") + ">Undo</button>";
   html += "</div></section>";
@@ -748,10 +779,20 @@ function renderFast(){
 
   document.getElementById("act-ftday").addEventListener("click", function(){
     var t = ftTotalIncome();
-    snapshot();
-    state.cash += t;
-    logIt("CASHFLOW Day", t);
-    commit();
+    openModal(
+      "<h3>Collect CASHFLOW Day</h3><p class='hint'>Add this CASHFLOW Day's income to your cash on hand.</p>" +
+      "<div class='calc-line'><span>Income</span><span class='money pos'>" + fmt(t) + "</span></div>" +
+      "<div class='calc-line'><span>New cash on hand</span><span class='money'>" + fmt(state.cash + t) + "</span></div>",
+      "Collect CASHFLOW Day",
+      function(){
+        snapshot();
+        state.cash += t;
+        logIt("CASHFLOW Day", t);
+        commit();
+        playChime();
+        celebrateCash();
+        return true;
+      });
   });
   app.querySelectorAll("[data-act]").forEach(function(b){
     b.addEventListener("click", function(){ runAction(b.getAttribute("data-act")); });
@@ -868,24 +909,32 @@ function runAction(act){
       break;
 
     case "adjust":
+      var adjSign = {v: 1};
       openModal(
-        "<h3>Adjust cash</h3><p class='hint'>For anything else — a Market card windfall, a trade with another player, or fixing a mistake.</p>" +
-        moneyField("m_amt","Amount","") + labelField("m_lbl","Reason","e.g. Market card") +
-        "<div class='sheet-actions' style='margin-top:8px'>" +
-        "<button class='btn' id='m_minus'>− Remove</button>" +
-        "<button class='btn btn-primary' id='m_plus'>+ Add</button></div>",
-        null, null);
-      var adj = function(sign){
-        var amt = num("m_amt");
-        if(amt <= 0) return err("Enter an amount.");
-        if(sign < 0 && amt > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
-        snapshot();
-        state.cash += sign * amt;
-        logIt(txt("m_lbl") || "Cash adjustment", sign * amt);
-        commit(); closeModal();
-      };
-      document.getElementById("m_plus").addEventListener("click", function(){ adj(1); });
-      document.getElementById("m_minus").addEventListener("click", function(){ adj(-1); });
+        "<h3>Adjust cash</h3><p class='hint'>For anything else — a Market card windfall, a trade with another player, or fixing a mistake. Tap the sign to switch between adding and subtracting.</p>" +
+        "<div class='field'><label for='m_amt'>Amount</label><div style='display:flex;gap:8px'>" +
+        "<button type='button' id='m_sign' class='btn sign-toggle'>+</button>" +
+        "<input id='m_amt' type='text' inputmode='numeric' pattern='[0-9,]*' placeholder='0' style='flex:1'></div></div>" +
+        labelField("m_lbl","Reason","e.g. Market card") + leftLine(),
+        "Confirm",
+        function(){
+          var amt = num("m_amt");
+          if(amt <= 0) return err("Enter an amount.");
+          var signed = adjSign.v * amt;
+          if(signed < 0 && amt > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
+          snapshot();
+          state.cash += signed;
+          logIt(txt("m_lbl") || "Cash adjustment", signed);
+          commit(); return true;
+        });
+      var signBtn = document.getElementById("m_sign");
+      signBtn.addEventListener("click", function(){
+        adjSign.v *= -1;
+        signBtn.textContent = adjSign.v < 0 ? "−" : "+";
+        signBtn.classList.toggle("btn-primary", adjSign.v < 0);
+        setLeft(state.cash + adjSign.v * num("m_amt"));
+      });
+      liveCalc(["m_amt"], function(){ setLeft(state.cash + adjSign.v * num("m_amt")); });
       break;
 
     case "ftdeal":
@@ -930,20 +979,63 @@ function runAction(act){
       break;
 
     case "ftcharity":
-      var ftT = ftTotalIncome();
-      var t10 = Math.round(ftT * 0.10);
+      var ftCharityCost = 100000;
+      var chosenDice = {v: state.diceCount || 2};
       openModal(
-        "<h3>Charity</h3><p class='hint'>Donate 10% of your CASHFLOW Day income to roll extra dice.</p>" +
-        "<div class='calc-line'><span>10% of " + fmt(ftT) + "</span><span class='money'>" + fmt(t10) + "</span></div>" + leftLine(),
-        "Donate " + fmt(t10),
+        "<h3>Charity</h3><p class='hint'>Donate $100,000 and choose how many dice you roll for the rest of the game.</p>" +
+        "<div class='calc-line'><span>Cost</span><span class='money'>" + fmt(ftCharityCost) + "</span></div>" + leftLine() +
+        "<div class='field'><label>Dice for the rest of the game</label><div class='chips' id='m_dice'>" +
+        [1,2,3].map(function(n){
+          return "<button type='button' class='chip" + (chosenDice.v === n ? " active" : "") + "' data-n='" + n + "'>" + n + (n === 1 ? " die" : " dice") + "</button>";
+        }).join("") + "</div></div>",
+        "Donate " + fmt(ftCharityCost),
         function(){
-          if(t10 > state.cash) return err("Not enough cash (" + fmt(state.cash) + ").");
-          snapshot();
-          state.cash -= t10;
-          logIt("Charity — 10% of CASHFLOW Day income", -t10);
-          commit(); return true;
+          return payOrBorrow(ftCharityCost, function(){
+            state.cash -= ftCharityCost;
+            state.diceCount = chosenDice.v;
+            logIt("Charity — $100,000, now rolling " + chosenDice.v + (chosenDice.v === 1 ? " die" : " dice"), -ftCharityCost);
+          });
         });
-      setLeft(state.cash - t10);
+      setLeft(state.cash - ftCharityCost);
+      document.querySelectorAll("#m_dice .chip").forEach(function(c){
+        c.addEventListener("click", function(){
+          chosenDice.v = parseInt(c.getAttribute("data-n"), 10);
+          document.querySelectorAll("#m_dice .chip").forEach(function(x){ x.classList.remove("active"); });
+          c.classList.add("active");
+        });
+      });
+      break;
+
+    case "ftlife":
+      openModal(
+        "<h3>Divorce / Tax Audit / Lawsuit</h3><p class='hint'>Pick the card that got drawn.</p>" +
+        "<div class='calc-line'><span>Cash on hand</span><span class='money'>" + fmt(state.cash) + "</span></div>" +
+        "<div class='sheet-actions' style='margin-top:8px;flex-direction:column'>" +
+        "<button class='btn' id='m_divorce'>Divorce — lose all your cash</button>" +
+        "<button class='btn' id='m_audit'>Tax Audit — lose half your cash</button>" +
+        "<button class='btn' id='m_lawsuit'>Lawsuit — lose half your cash</button></div>",
+        null, null);
+      document.getElementById("m_divorce").addEventListener("click", function(){
+        snapshot();
+        var lost = state.cash;
+        state.cash = 0;
+        logIt("Divorce — lost all cash", -lost);
+        commit(); closeModal();
+      });
+      document.getElementById("m_audit").addEventListener("click", function(){
+        snapshot();
+        var lost = Math.round(state.cash / 2);
+        state.cash -= lost;
+        logIt("Tax Audit — lost half your cash", -lost);
+        commit(); closeModal();
+      });
+      document.getElementById("m_lawsuit").addEventListener("click", function(){
+        snapshot();
+        var lost = Math.round(state.cash / 2);
+        state.cash -= lost;
+        logIt("Lawsuit — lost half your cash", -lost);
+        commit(); closeModal();
+      });
       break;
 
     case "undo":
@@ -1059,6 +1151,37 @@ function upgradeModal(id){
       });
     });
   liveCalc(["m_cost"], function(){ setLeft(state.cash - num("m_cost")); });
+}
+
+function splitModal(id){
+  var a = state.assets.find(function(x){ return String(x.id) === String(id); });
+  if(!a || a.type !== "stock") return;
+  openModal(
+    "<h3>Split " + esc(a.name) + "</h3><p class='hint'>You hold " + a.shares.toLocaleString("en-US") + " shares @ " + fmt(a.costShare) +
+    ". Enter the ratio from the card — e.g. 2 for every 1 doubles your shares (a split); 1 for every 2 halves them (a reverse split).</p>" +
+    "<div class='grid2'>" + moneyField("m_from","For every","1") + moneyField("m_to","You get","2") + "</div>" +
+    "<div class='calc-line'><span>New position</span><span class='money' id='m_calc'>" + a.shares.toLocaleString("en-US") + " @ " + fmt(a.costShare) + "</span></div>",
+    "Apply split",
+    function(){
+      var from = num("m_from") || 0, to = num("m_to") || 0;
+      if(from <= 0 || to <= 0) return err("Enter a valid ratio, e.g. 2 for every 1.");
+      var newShares = Math.max(0, Math.round(a.shares * to / from));
+      var newCost = Math.round(a.costShare * from / to);
+      snapshot();
+      var live = state.assets.find(function(x){ return String(x.id) === String(id); });
+      live.shares = newShares;
+      live.costShare = newCost;
+      logIt(live.name + " split " + to + "-for-" + from + " — now " + newShares.toLocaleString("en-US") + " shares @ " + fmt(newCost));
+      commit(); return true;
+    });
+  liveCalc(["m_from","m_to"], function(){
+    var from = num("m_from") || 0, to = num("m_to") || 0;
+    var calc = document.getElementById("m_calc");
+    if(from <= 0 || to <= 0){ calc.textContent = "—"; return; }
+    var newShares = Math.max(0, Math.round(a.shares * to / from));
+    var newCost = Math.round(a.costShare * from / to);
+    calc.textContent = newShares.toLocaleString("en-US") + " @ " + fmt(newCost);
+  });
 }
 
 function sellModal(id){
@@ -1249,12 +1372,15 @@ function untrackKeyboard(){
   vvHandler = null;
 }
 
-function openModal(bodyHtml, confirmLabel, onConfirm){
+function openModal(bodyHtml, confirmLabel, onConfirm, opts){
+  opts = opts || {};
   lockScroll();
   var html = "<div class='overlay' id='ovl'><div class='sheet' role='dialog' aria-modal='true'>";
   html += bodyHtml;
   html += "<p class='err' id='m_err'></p>";
-  if(confirmLabel){
+  if(confirmLabel && opts.hideCancel){
+    html += "<div class='sheet-actions'><button class='btn btn-primary' id='m_ok'>" + esc(confirmLabel) + "</button></div>";
+  } else if(confirmLabel){
     html += "<div class='sheet-actions'><button class='btn' id='m_cancel'>Cancel</button>" +
       "<button class='btn btn-primary' id='m_ok'>" + esc(confirmLabel) + "</button></div>";
   } else {
@@ -1265,7 +1391,8 @@ function openModal(bodyHtml, confirmLabel, onConfirm){
   document.getElementById("ovl").addEventListener("click", function(ev){
     if(ev.target.id === "ovl") closeModal();
   });
-  document.getElementById("m_cancel").addEventListener("click", closeModal);
+  var cancelBtn = document.getElementById("m_cancel");
+  if(cancelBtn) cancelBtn.addEventListener("click", closeModal);
   if(confirmLabel && onConfirm){
     document.getElementById("m_ok").addEventListener("click", function(){
       if(onConfirm() !== false) closeModal();
@@ -1276,6 +1403,83 @@ function openModal(bodyHtml, confirmLabel, onConfirm){
   trackKeyboard();
 }
 function closeModal(){ untrackKeyboard(); modalRoot.innerHTML = ""; unlockScroll(); }
+
+/* ---------- little celebrations: sound + pulse on collecting cash ---------- */
+var audioCtx = null;
+function playChime(){
+  try{
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    if(!audioCtx) audioCtx = new Ctx();
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    var now = audioCtx.currentTime;
+    [660, 880].forEach(function(freq, i){
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      var t0 = now + i * 0.09;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.3);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t0); osc.stop(t0 + 0.32);
+    });
+  }catch(e){}
+}
+function celebrateCash(){
+  var el = document.querySelector(".cash-amount");
+  if(!el) return;
+  el.classList.remove("flash");
+  void el.offsetWidth;
+  el.classList.add("flash");
+}
+
+/* ---------- keep the screen awake while playing ---------- */
+var wakeLock = null;
+function requestWakeLock(){
+  if(!("wakeLock" in navigator)) return;
+  navigator.wakeLock.request("screen").then(function(lock){
+    wakeLock = lock;
+    wakeLock.addEventListener("release", function(){ wakeLock = null; });
+  }).catch(function(){});
+}
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible" && state.started && !wakeLock) requestWakeLock();
+});
+
+/* ---------- one-time celebration popups ---------- */
+function checkMilestones(){
+  if(!state.started) return;
+  if(state.track === "rat"){
+    var d = derived();
+    if(d.out && !state.notifiedEscape){
+      state.notifiedEscape = true;
+      save();
+      setTimeout(function(){
+        openModal(
+          "<h3>🎉 You're out of the Rat Race!</h3><p class='hint'>Passive income " + fmt(d.passive) +
+          " now beats your total expenses of " + fmt(d.totalExpenses) + ". Head to the Fast Track when you're ready.</p>",
+          "Nice!", function(){ return true; }, {hideCancel:true});
+      }, 0);
+    }
+  } else if(state.track === "fast"){
+    var ftTotal = ftTotalIncome();
+    var gain = ftTotal - (state.ftStart || 0);
+    var won = !!state.ftDream || gain >= 50000;
+    if(won && !state.notifiedWin){
+      state.notifiedWin = true;
+      save();
+      setTimeout(function(){
+        openModal(
+          "<h3>🏆 You win the game!</h3><p class='hint'>" +
+          (state.ftDream ? "You bought your Dream — " + esc(state.ftDream) + "." : "You added " + fmt(gain) + " in cash flow.") +
+          " Take a bow.</p>",
+          "Nice!", function(){ return true; }, {hideCancel:true});
+      }, 0);
+    }
+  }
+}
 
 /* live thousand separators on every money input */
 document.addEventListener("input", function(ev){
