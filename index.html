@@ -264,7 +264,6 @@
 <div id="app"></div>
 <div id="modal-root"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
 "use strict";
@@ -325,7 +324,7 @@ function blankState(){
     diceCount:2,     // dice rolled per turn on the Fast Track
     notifiedEscape:false,
     notifiedWin:false,
-    mp:null,         // {code,gameId,playerId,host} when in a shared game
+    mp:null,         // {code,gameId,playerId,secret,host} when in a shared game
     log:[],          // {t:label, d:delta or null}
     history:[]
   };
@@ -1510,25 +1509,37 @@ function checkMilestones(){
   }
 }
 
-/* ================= Multiplayer (Supabase) ================= */
-var SUPA_URL = "https://mdcpwnsufswzenmpgesl.supabase.co";
-/* Public anon key — safe to embed in a static page. Row-level security limits
-   what it can touch, and it only ever reads/writes this party game's tables. */
-var SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kY3B3bnN1ZnN3emVubXBnZXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTI3MTMsImV4cCI6MjA5OTYyODcxM30.yxXSUVuIW6MLQrjEr9yY-0NzQ42BzMpzlSLwz-6s27U";
-var supa = (window.supabase && window.supabase.createClient)
-  ? window.supabase.createClient(SUPA_URL, SUPA_KEY, {realtime:{params:{eventsPerSecond:5}}})
-  : null;
+/* ================= Multiplayer (Cloudflare Worker + D1) ================= */
+/* Shared lobby/scoreboard lives in a D1 database behind a small Worker API
+   (see /worker). Joining returns a per-player secret, so only this device can
+   update or remove its own row. D1 has no realtime feed, so we poll. */
+var API_BASE = "https://cashflow-companion-api.jibril-60b.workers.dev/api";
+var POLL_MS = 3000;
+
+function api(method, path, body, secret){
+  var opts = {method:method, headers:{}, keepalive:method !== "GET"};
+  if(body !== undefined){ opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  if(secret){ opts.headers["Authorization"] = "Bearer " + secret; }
+  return fetch(API_BASE + path, opts).then(function(res){
+    return res.json().catch(function(){ return {}; }).then(function(data){
+      if(!res.ok){ var e = new Error((data && data.error) || ("HTTP " + res.status)); e.status = res.status; e.msg = data && data.error; throw e; }
+      return data;
+    });
+  });
+}
 
 var mpPlayers = [];
-var mpChannel = null;
+var mpPollTimer = null;
 
 function deviceId(){
   var id = localStorage.getItem("cashflow-device");
   if(!id){ id = "d" + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("cashflow-device", id); }
   return id;
 }
-function genCode(){ return "PLAY-" + Math.floor(1000 + Math.random() * 9000); }
-function mpConnected(){ return !!(state.mp && state.mp.code && state.mp.playerId); }
+function mpConnected(){ return !!(state.mp && state.mp.code && state.mp.playerId && state.mp.secret); }
+/* Sessions saved from the old Supabase backend have no secret and point at
+   rows that no longer exist — drop them so the player can host/join afresh. */
+if(state.mp && !state.mp.secret){ state.mp = null; save(); }
 
 function lastActionLabel(){
   for(var i = state.log.length - 1; i >= 0; i--){ if(!state.log[i].marker) return state.log[i].t; }
@@ -1555,49 +1566,42 @@ function mpSnapshotFields(){
 }
 
 function mpPush(){
-  if(!supa || !mpConnected()) return;
-  var f = mpSnapshotFields();
-  f.updated_at = new Date().toISOString();
-  supa.from("players").update(f).eq("id", state.mp.playerId).then(function(){}, function(){});
+  if(!mpConnected()) return;
+  api("PATCH", "/players/" + encodeURIComponent(state.mp.playerId), mpSnapshotFields(), state.mp.secret)
+    .then(mpFetchRoster, function(){});
 }
 function mpHost(name){
-  if(!supa) return Promise.reject("offline");
-  var code = genCode();
-  return supa.from("games").insert({code:code, host_name:name, status:"lobby"}).select().single()
-    .then(function(res){
-      if(res.error) return mpHost(name); // rare code collision — try again
-      return mpJoin(code, name, true);
-    });
-}
-function mpJoin(code, name, isHost){
-  if(!supa) return Promise.reject("offline");
-  code = String(code).trim().toUpperCase();
-  return supa.from("games").select("id,code").eq("code", code).single().then(function(res){
-    if(res.error || !res.data) throw "No game found with that code.";
-    var gameId = res.data.id;
-    var base = mpSnapshotFields();
-    base.game_id = gameId; base.code = code; base.client_id = deviceId(); base.name = name;
-    return supa.from("players").insert(base).select().single().then(function(pr){
-      if(pr.error) throw "Could not join the game.";
-      state.mp = {code:code, gameId:gameId, playerId:pr.data.id, host:!!isHost};
-      save();
-      mpSubscribe();
-      return code;
-    });
+  return api("POST", "/games", {host_name:name}).then(function(game){
+    return mpJoin(game.code, name, true);
   });
 }
+function mpJoin(code, name, isHost){
+  code = String(code).trim().toUpperCase();
+  var base = mpSnapshotFields();
+  base.client_id = deviceId(); base.name = name;
+  return api("POST", "/games/" + encodeURIComponent(code) + "/players", base).then(function(res){
+    state.mp = {code:code, gameId:res.player.game_id, playerId:res.player.id, secret:res.secret, host:!!isHost};
+    save();
+    mpSubscribe();
+    return code;
+  }, function(e){
+    throw (e && e.msg) || "Couldn't reach the server. Check your connection.";
+  });
+}
+function mpStopPolling(){
+  if(mpPollTimer){ clearInterval(mpPollTimer); mpPollTimer = null; }
+}
 function mpLeave(){
-  if(supa && mpConnected()){
-    supa.from("players").delete().eq("id", state.mp.playerId).then(function(){}, function(){});
+  if(mpConnected()){
+    api("DELETE", "/players/" + encodeURIComponent(state.mp.playerId), undefined, state.mp.secret).then(function(){}, function(){});
   }
-  if(mpChannel && supa){ supa.removeChannel(mpChannel); }
-  mpChannel = null; mpPlayers = [];
+  mpStopPolling(); mpPlayers = [];
   state.mp = null; save(); render();
 }
 function mpFetchRoster(){
-  if(!supa || !mpConnected()) return;
-  supa.from("players").select("*").eq("code", state.mp.code)
-    .then(function(res){ if(res.data){ mpPlayers = sortRoster(res.data); updateLobbyStrip(); } });
+  if(!mpConnected()) return;
+  api("GET", "/games/" + encodeURIComponent(state.mp.code) + "/players")
+    .then(function(list){ if(Array.isArray(list)){ mpPlayers = sortRoster(list); updateLobbyStrip(); } }, function(){});
 }
 function sortRoster(list){
   return list.slice().sort(function(a, b){
@@ -1607,14 +1611,16 @@ function sortRoster(list){
   });
 }
 function mpSubscribe(){
-  if(!supa || !mpConnected()) return;
-  if(mpChannel){ supa.removeChannel(mpChannel); mpChannel = null; }
-  mpChannel = supa.channel("game-" + state.mp.code)
-    .on("postgres_changes", {event:"*", schema:"public", table:"players", filter:"code=eq." + state.mp.code},
-      function(){ mpFetchRoster(); })
-    .subscribe();
+  if(!mpConnected()) return;
+  mpStopPolling();
+  mpPollTimer = setInterval(function(){
+    if(document.visibilityState !== "hidden") mpFetchRoster();
+  }, POLL_MS);
   mpFetchRoster();
 }
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible" && mpConnected()) mpFetchRoster();
+});
 function overviewLink(){
   var base = location.href.split(/[?#]/)[0].replace(/[^\/]*$/, "");
   return base + "overview.html?game=" + encodeURIComponent(state.mp ? state.mp.code : "");
@@ -1624,7 +1630,6 @@ function copyText(t){
 }
 
 function mpSectionHtml(){
-  if(!supa) return ""; // library didn't load (offline) — hide multiplayer entirely
   var h = "<section><h2>Multiplayer</h2>";
   if(mpConnected()){
     h += "<div class='row'><span class='lbl'>Game code<span class='note'>Read this out to the other players</span></span>" +

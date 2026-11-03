@@ -156,20 +156,18 @@
   </footer>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
 "use strict";
-var SUPA_URL = "https://mdcpwnsufswzenmpgesl.supabase.co";
-var SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1kY3B3bnN1ZnN3emVubXBnZXNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNTI3MTMsImV4cCI6MjA5OTYyODcxM30.yxXSUVuIW6MLQrjEr9yY-0NzQ42BzMpzlSLwz-6s27U";
-var supa = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+/* Shared scoreboard is served by the Cloudflare Worker + D1 API (see /worker). */
+var API_BASE = "https://cashflow-companion-api.jibril-60b.workers.dev/api";
+var POLL_MS = 2000;
 
 var ROW = 130; // card height 118 + 12 gap
 var params = new URLSearchParams(location.search);
 var code = (params.get("game") || "").trim().toUpperCase();
 var players = [];
 var prevCash = {};      // id -> last cash, to flash on change
-var channel = null;
 var content = document.getElementById("content");
 
 function fmt(n){
@@ -304,25 +302,21 @@ function animateDots(){
   }, 450);
 }
 
+var fetching = false;
 function fetchPlayers(){
-  if(!supa) return;
-  supa.from("players").select("*").eq("code", code).then(function(res){
-    if(res.data){ players = res.data; render(); }
-  });
+  if(fetching) return;
+  fetching = true;
+  fetch(API_BASE + "/games/" + encodeURIComponent(code) + "/players", {cache:"no-store"})
+    .then(function(res){ return res.ok ? res.json() : null; })
+    .then(function(list){ if(Array.isArray(list)){ players = list; render(); } }, function(){})
+    .then(function(){ fetching = false; });
 }
 function subscribe(){
-  if(!supa) return;
-  channel = supa.channel("ov-" + code)
-    .on("postgres_changes", {event:"*", schema:"public", table:"players", filter:"code=eq." + code}, fetchPlayers)
-    .subscribe();
   fetchPlayers();
-  // safety net poll in case a realtime event is missed
-  setInterval(fetchPlayers, 5000);
+  setInterval(function(){ if(document.visibilityState !== "hidden") fetchPlayers(); }, POLL_MS);
 }
 
-if(!supa){
-  content.innerHTML = "<div class='empty-state'><div class='big'>Couldn't load</div><p>The connection library didn't load. Check your internet and refresh.</p></div>";
-} else if(!code){
+if(!code){
   joinScreen();
 } else {
   render();

@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cashflow-companion-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "account_id": "60b730323d880ca11a2f3831207310c3",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cashflow-companion",
+      "database_id": "9cbd0715-5146-44f3-9e44-27f7d618e749",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Daily clean-up of games nobody has touched in a week.
+  "triggers": { "crons": ["17 3 * * *"] }
+}
